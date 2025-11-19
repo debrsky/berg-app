@@ -1,10 +1,46 @@
 // schema.config.js
-// Финальная правильная версия для Дальнего Востока и многопоясной работы
-// Все даты — TIMESTAMP WITHOUT TIME ZONE
-// → время хранится и отображается "как есть", как вводил пользователь в Access
-// → никаких автоматических смещений на +11, +3 и т.д.
+// Полная схема базы данных bergauto для PostgreSQL
+// Включает структуру таблиц + все необходимые индексы
 
 export const SchemaConfig = {
+  Bosses: [
+    { Name: "ID", Type: "INTEGER", PK: true },
+    { Name: "Name", Type: "VARCHAR(100)", NotNull: true },
+    { Name: "BossName", Type: "VARCHAR(50)" },
+    { Name: "Mem", Type: "TEXT" },
+    { Name: "Tel", Type: "VARCHAR(50)" },
+    { Name: "Address", Type: "VARCHAR(100)" },
+    { Name: "INN", Type: "VARCHAR(50)" },
+    { Name: "OGRN", Type: "VARCHAR(50)" },
+    { Name: "KPP", Type: "VARCHAR(50)" },
+    { Name: "RS", Type: "VARCHAR(50)" },
+    { Name: "KS", Type: "VARCHAR(50)" },
+    { Name: "BIK", Type: "VARCHAR(50)" },
+    { Name: "Bank", Type: "VARCHAR(100)" },
+    { Name: "RS2", Type: "VARCHAR(50)" },
+    { Name: "KS2", Type: "VARCHAR(50)" },
+    { Name: "BIK2", Type: "VARCHAR(50)" },
+    { Name: "Bank2", Type: "VARCHAR(100)" },
+    { Name: "BuhName", Type: "VARCHAR(50)" },
+    { Name: "NextInvoiceNomer", Type: "INTEGER" },
+    { Name: "NDS", Type: "DOUBLE PRECISION" },
+    { Name: "BaseCode", Type: "SMALLINT" },
+    { Name: "ID_Ref", Type: "INTEGER" },
+    { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+  ],
+
+  Cargos: [
+    { Name: "ID", Type: "INTEGER", PK: true },
+    { Name: "Name", Type: "VARCHAR(100)", NotNull: true },
+    { Name: "IsFood", Type: "BOOLEAN", Default: "false" },
+    { Name: "IsRef", Type: "BOOLEAN", Default: "false" },
+    { Name: "IsFull", Type: "BOOLEAN", Default: "false" },
+    { Name: "Mem", Type: "TEXT" },
+    { Name: "BaseCode", Type: "SMALLINT" },
+    { Name: "ID_Ref", Type: "INTEGER" },
+    { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+  ],
+
   Customers: [
     { Name: "ID", Type: "INTEGER", PK: true },
     { Name: "NameShort", Type: "VARCHAR(100)", NotNull: true },
@@ -71,6 +107,17 @@ export const SchemaConfig = {
     { Name: "BaseCode", Type: "SMALLINT" },
     { Name: "ID_Ref", Type: "INTEGER" },
     { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+  ],
+
+  xSaldo: [
+    { Name: "ID_CustomerPay", Type: "INTEGER", NotNull: true },
+    { Name: "ID_Boss", Type: "INTEGER", NotNull: true },
+    { Name: "IsCash", Type: "BOOLEAN", NotNull: true, Default: "false" },
+    { Name: "Count", Type: "INTEGER", NotNull: true },
+    { Name: "Cost", Type: "DOUBLE PRECISION", NotNull: true },
+    { Name: "Pays", Type: "DOUBLE PRECISION", NotNull: true },
+    { Name: "IsNomer", Type: "BOOLEAN", NotNull: true, Default: "false" },
+    { Name: "BuildID", Type: "INTEGER" },
   ],
 
   Applications: [
@@ -173,57 +220,75 @@ export const SchemaConfig = {
     { Name: "ID_Ref", Type: "INTEGER" },
     { Name: "ToExport", Type: "BOOLEAN", NotNull: true, Default: "false" },
   ],
+};
+
+// =========================================
+// Все индексы — теперь в одном месте!
+// =========================================
+
+// В файле schema.config.js — замени весь объект IndexesConfig на этот:
+export const IndexesConfig = {
+  Applications: [
+    `CREATE INDEX IF NOT EXISTS idx_applications_date_reg          ON berg."Applications" ("DateReg")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_datework_in       ON berg."Applications" ("DateWorkIn")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_datework_out      ON berg."Applications" ("DateWorkOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer          ON berg."Applications" ("ID_Customer")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_pay      ON berg."Applications" ("ID_CustomerPay")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_out      ON berg."Applications" ("ID_CustomerOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_point_in          ON berg."Applications" ("ID_PointIn")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_point_out         ON berg."Applications" ("ID_PointOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_cargo             ON berg."Applications" ("ID_Cargo")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_tariff            ON berg."Applications" ("ID_Tariff")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_stage             ON berg."Applications" ("Stage")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_nomer             ON berg."Applications" ("Nomer")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_date     ON berg."Applications" ("ID_Customer", "DateReg" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_pay_date          ON berg."Applications" ("ID_CustomerPay", "DateReg" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_period            ON berg."Applications" ("DateWorkIn", "DateWorkOut")`,
+  ],
+
+  XInvoices: [
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_app       ON berg."XInvoices" ("ID_Application")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_date      ON berg."XInvoices" ("Date" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_nomer     ON berg."XInvoices" ("Nomer")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_boss      ON berg."XInvoices" ("ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_fixed     ON berg."XInvoices" ("IsFixed")`,
+  ],
+
+  XInvoicePays: [
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_invoice ON berg."XInvoicePays" ("ID_XInvoice")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_date     ON berg."XInvoicePays" ("Date" DESC)`,
+  ],
+
+  XInvoiceDatas: [
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_invoice ON berg."XInvoiceDatas" ("ID_XInvoice")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_car     ON berg."XInvoiceDatas" ("ID_Car") WHERE "ID_Car" IS NOT NULL`,
+  ],
+
+  Customers: [
+    `CREATE INDEX IF NOT EXISTS idx_customers_name   ON berg."Customers" ("NameShort")`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_inn    ON berg."Customers" ("INN") WHERE "INN" IS NOT NULL AND "INN" != ''`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_tariff ON berg."Customers" ("ID_Tariff")`,
+  ],
+
+  Tariffs: [
+    `CREATE INDEX IF NOT EXISTS idx_tariffs_name ON berg."Tariffs" ("Name")`,
+  ],
 
   Bosses: [
-    { Name: "ID", Type: "INTEGER", PK: true },
-    { Name: "Name", Type: "VARCHAR(100)", NotNull: true },
-    { Name: "BossName", Type: "VARCHAR(50)" },
-    { Name: "Mem", Type: "TEXT" },
-    { Name: "Tel", Type: "VARCHAR(50)" },
-    { Name: "Address", Type: "VARCHAR(100)" },
-    { Name: "INN", Type: "VARCHAR(50)" },
-    { Name: "OGRN", Type: "VARCHAR(50)" },
-    { Name: "KPP", Type: "VARCHAR(50)" },
-    { Name: "RS", Type: "VARCHAR(50)" },
-    { Name: "KS", Type: "VARCHAR(50)" },
-    { Name: "BIK", Type: "VARCHAR(50)" },
-    { Name: "Bank", Type: "VARCHAR(100)" },
-    { Name: "RS2", Type: "VARCHAR(50)" },
-    { Name: "KS2", Type: "VARCHAR(50)" },
-    { Name: "BIK2", Type: "VARCHAR(50)" },
-    { Name: "Bank2", Type: "VARCHAR(100)" },
-    { Name: "BuhName", Type: "VARCHAR(50)" },
-    { Name: "NextInvoiceNomer", Type: "INTEGER" },
-    { Name: "NDS", Type: "DOUBLE PRECISION" },
-    { Name: "BaseCode", Type: "SMALLINT" },
-    { Name: "ID_Ref", Type: "INTEGER" },
-    { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+    `CREATE INDEX IF NOT EXISTS idx_bosses_name ON berg."Bosses" ("Name")`,
   ],
 
   Cargos: [
-    { Name: "ID", Type: "INTEGER", PK: true },
-    { Name: "Name", Type: "VARCHAR(100)", NotNull: true },
-    { Name: "IsFood", Type: "BOOLEAN", Default: "false" },
-    { Name: "IsRef", Type: "BOOLEAN", Default: "false" },
-    { Name: "IsFull", Type: "BOOLEAN", Default: "false" },
-    { Name: "Mem", Type: "TEXT" },
-    { Name: "BaseCode", Type: "SMALLINT" },
-    { Name: "ID_Ref", Type: "INTEGER" },
-    { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+    `CREATE INDEX IF NOT EXISTS idx_cargos_name ON berg."Cargos" ("Name")`,
   ],
 
   xSaldo: [
-    { Name: "ID_CustomerPay", Type: "INTEGER", NotNull: true },
-    { Name: "ID_Boss", Type: "INTEGER", NotNull: true },
-    { Name: "IsCash", Type: "BOOLEAN", NotNull: true, Default: "false" },
-    { Name: "Count", Type: "INTEGER", NotNull: true },
-    { Name: "Cost", Type: "DOUBLE PRECISION", NotNull: true },
-    { Name: "Pays", Type: "DOUBLE PRECISION", NotNull: true },
-    { Name: "IsNomer", Type: "BOOLEAN", NotNull: true, Default: "false" },
-    { Name: "BuildID", Type: "INTEGER" },
+    `CREATE INDEX IF NOT EXISTS idx_xsaldo_main ON berg."xSaldo" ("ID_CustomerPay", "ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS idx_xsaldo_cash ON berg."xSaldo" ("IsCash")`,
   ],
 };
 
+// Порядок создания таблиц (важно для внешних ключей в будущем)
 export const TablesOrder = [
   "Bosses",
   "Cargos",

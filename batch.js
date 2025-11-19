@@ -4,7 +4,7 @@ import { Client } from "pg";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { SchemaConfig, TablesOrder } from "./schema.config.js";
+import { SchemaConfig, IndexesConfig, TablesOrder } from "./schema.config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +20,7 @@ const config = {
   schema: "berg",
   limit: null,          // null = все строки, например 10000 для теста
   dropSchema: true,
-  batchSize: 2000,      // желаемый размер батча (будет уменьшен автоматически при необходимости)
+  batchSize: 2000,      // будет автоматически уменьшен при необходимости
 };
 
 // ───── Цвета ─────
@@ -30,7 +30,7 @@ const cyan = t => `\x1b[36m${t}\x1b[0m`;
 const gray = t => `\x1b[90m${t}\x1b[0m`;
 const red = t => `\x1b[31m${t}\x1b[0m`;
 
-// ───── Время ─────
+// ───── Вспомогательные функции ─────
 function formatTime(seconds) {
   if (seconds < 60) return `${seconds.toFixed(1)}с`;
   const m = Math.floor(seconds / 60);
@@ -38,22 +38,20 @@ function formatTime(seconds) {
   return `${m}м ${s}с`;
 }
 
-// ───── Умный размер батча (защита от >65535 параметров) ─────
 function getOptimalBatchSize(columnCount, desired = config.batchSize) {
-  const MAX_PARAMS = 60000; // безопасный лимит
+  const MAX_PARAMS = 60000;
   const calculated = Math.floor(MAX_PARAMS / columnCount);
   return Math.max(50, Math.min(desired, calculated));
 }
 
 // ───── Основная функция ─────
 async function main() {
-  console.log(cyan("\nЗапуск миграции Access → PostgreSQL (пакетный режим + защита)\n"));
+  console.log(cyan("\nЗапуск миграции Access → PostgreSQL (индексы создаются ПОСЛЕ загрузки)\n"));
 
   const client = new Client(config.pg);
   await client.connect();
   console.log(green("PostgreSQL подключено"));
 
-  // Ускоряем запись на время миграции
   await client.query("SET synchronous_commit = off");
   await client.query("SET client_min_messages = warning");
 
@@ -67,6 +65,7 @@ async function main() {
   const reader = new MDBReader(buffer);
   console.log(green(`MDB загружен: ${reader.getTableNames().length} таблиц найдено\n`));
 
+  // ───── Пересоздание схемы ─────
   if (config.dropSchema) {
     await client.query(`DROP SCHEMA IF EXISTS ${config.schema} CASCADE`);
     await client.query(`CREATE SCHEMA ${config.schema}`);
@@ -74,7 +73,7 @@ async function main() {
     console.log(yellow(`Схема "${config.schema}" пересоздана\n`));
   }
 
-  // Создание таблиц
+  // ───── 1. Создание таблиц (только PK, без остальных индексов) ─────
   for (const tableName of TablesOrder) {
     const cols = SchemaConfig[tableName];
     if (!cols) continue;
@@ -91,15 +90,16 @@ async function main() {
       }
       return line;
     });
+
     const sql = `CREATE TABLE IF NOT EXISTS ${config.schema}."${tableName}" (${lines.join(", ")})`;
     await client.query(sql);
   }
-  console.log(green("Все таблицы созданы\n"));
+  console.log(green("Все таблицы созданы (без индексов — для максимальной скорости вставки)\n"));
 
   let totalRows = 0;
   const totalStart = Date.now();
 
-  // Перенос данных
+  // ───── 2. Перенос данных ─────
   for (const tableName of TablesOrder) {
     const table = reader.getTable(tableName);
     if (!table) {
@@ -131,9 +131,7 @@ async function main() {
 
         const values = columns.map(col => {
           const val = row[col];
-          // Если это поле с датой-временем — отнимаем 11 часов
           if (val instanceof Date) {
-            // Отнимаем ровно 11 часов, чтобы из UTC получить местное время
             return new Date(val.getTime() - 11 * 60 * 60 * 1000);
           }
           return val === undefined || val === null ? null : val;
@@ -144,7 +142,6 @@ async function main() {
 
         if (batch.length === batchSize || inserted === toInsert) {
           const flatValues = batch.flat();
-
           const placeholders = batch
             .map((_, i) =>
               columns
@@ -154,11 +151,9 @@ async function main() {
             .join("), (");
 
           const insertSql = `INSERT INTO ${config.schema}."${tableName}" (${columnList}) VALUES (${placeholders})`;
-
           await client.query(insertSql, flatValues);
           batch = [];
 
-          // Прогресс
           if (inserted % (batchSize * 5) === 0 || inserted === toInsert) {
             const elapsed = (Date.now() - start) / 1000;
             const speed = elapsed > 0 ? inserted / elapsed : 0;
@@ -188,11 +183,46 @@ async function main() {
     }
   }
 
+  // ───── 3. Создание индексов (ПОСЛЕ загрузки всех данных) ─────
+  console.log(cyan("\nВсе данные загружены! Создаём индексы (это займёт время, но один раз)...\n"));
+
+  const indexStart = Date.now();
+  let createdIndexes = 0;
+
+  for (const [tableName, indexList] of Object.entries(IndexesConfig)) {
+    if (!indexList || indexList.length === 0) continue;
+
+    console.log(yellow(`  ${tableName.padEnd(16)} → ${indexList.length} индекс(ов)`));
+
+    for (const sql of indexList) {
+      try {
+        await client.query(sql);
+        createdIndexes++;
+        process.stdout.write(green("✓"));
+      } catch (err) {
+        process.stdout.write(red("✗"));
+        console.warn(yellow(`\n    Ошибка: ${err.message}`));
+      }
+    }
+    console.log("");
+  }
+
+  const indexTime = ((Date.now() - indexStart) / 1000).toFixed(1);
+  console.log(green(`\nИндексы созданы: ${createdIndexes} за ${yellow(indexTime + "с")}\n`));
+
+  // ───── 4. ANALYZE ─────
+  console.log(cyan("Запуск ANALYZE для всех таблиц..."));
+  for (const tableName of TablesOrder) {
+    await client.query(`ANALYZE ${config.schema}."${tableName}"`);
+  }
+  console.log(green("ANALYZE завершён — запросы будут летать!\n"));
+
+  // ───── Финал ─────
   const totalTime = ((Date.now() - totalStart) / 1000).toFixed(1);
   console.log(cyan("════════════════════════════════════════════════"));
   console.log(yellow("МИГРАЦИЯ ЗАВЕРШЕНА УСПЕШНО!"));
   console.log(`Перенесено строк: ${yellow(totalRows.toLocaleString())}`);
-  console.log(`Общее время:     ${yellow(totalTime + " сек")}`);
+  console.log(`Общее время:      ${yellow(totalTime + " сек")}`);
   console.log(cyan("════════════════════════════════\n"));
 
   await client.end();
