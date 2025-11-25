@@ -5,20 +5,23 @@ import path from "path";
 import { fileURLToPath } from "url";
 import archiver from "archiver";
 import { MigrationConfig } from "./config.js";
+import { XMLParser } from "fast-xml-parser";
+import libxml from "libxmljs2";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ──────────────────────── НАСТРОЙКИ ────────────────────────
-const START_DATE = "2025-09-01";
+const START_DATE = "2000-09-01";
 const END_DATE = "2025-09-01";
 const BATCH_SIZE = 10000;
 const OUT_DIR = path.resolve(__dirname, "OUT");
 
 // === УПРАВЛЯЮЩИЕ КОНСТАНТЫ ===
-const PACK_INTO_ZIP = true;
+const PACK_INTO_ZIP = false;
 const FILENAME_COUNTERPARTIES = "counterparties.xml";
 const FILENAME_INVOICES = "invoices.xml";
 const USE_PERIOD_IN_FILENAME = true;
+const VALIDATE_XML = false; // ← Включить/выключить валидацию
 
 // ─────────────────────────────────────────────────────────────
 
@@ -41,7 +44,20 @@ if (!fs.existsSync(sqlInvoicesPath) || !fs.existsSync(sqlContragsPath)) {
 const sqlInvoices = fs.readFileSync(sqlInvoicesPath, "utf-8");
 const sqlContrags = fs.readFileSync(sqlContragsPath, "utf-8");
 
-const today = new Date().toISOString().slice(0, 10);
+function getCurrentDateTime() {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+}
+
+const today = getCurrentDateTime();
 const periodSuffix = USE_PERIOD_IN_FILENAME ? `_${START_DATE}_to_${END_DATE}` : "";
 const zipFilename = `commerce${periodSuffix}.zip`;
 const zipPath = path.join(OUT_DIR, zipFilename);
@@ -53,11 +69,67 @@ const escapeXml = (s) => s == null ? "" : String(s)
   .replace(/"/g, "&quot;")
   .replace(/'/g, "&apos;");
 
+// Функция валидации XML по XSD
+function validateXmlWithXsd(xmlContent, xsdContent, documentType) {
+  try {
+    const xmlDoc = libxml.parseXml(xmlContent);
+    const xsdDoc = libxml.parseXml(xsdContent);
+
+    const validationResult = xmlDoc.validate(xsdDoc);
+
+    if (!validationResult) {
+      const errors = xmlDoc.validationErrors.map(err => `  - ${err}`).join('\n');
+      console.error(red(`❌ Ошибки валидации ${documentType}:\n${errors}`));
+      return false;
+    }
+
+    console.log(green(`✅ ${documentType} валидирован успешно`));
+    return true;
+  } catch (error) {
+    console.error(red(`❌ Ошибка при валидации ${documentType}: ${error.message}`));
+    return false;
+  }
+}
+
+// Функция быстрой проверки XML (синтаксис)
+function validateXmlSyntax(xmlContent, documentType) {
+  try {
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      parseAttributeValue: true,
+      parseTagValue: true
+    });
+
+    const result = parser.parse(xmlContent);
+    console.log(green(`✅ ${documentType} синтаксис корректен`));
+    return true;
+  } catch (error) {
+    console.error(red(`❌ Ошибка синтаксиса в ${documentType}: ${error.message}`));
+    return false;
+  }
+}
+
 async function main() {
-  const overallStart = process.hrtime.bigint(); // ← точное время старта
+  const overallStart = process.hrtime.bigint();
 
   console.log(cyan(`\nВыгрузка CommerceML 2.10 за период ${yellow(START_DATE)} → ${yellow(END_DATE)}\n`));
-  console.log(cyan(`Режим: ${PACK_INTO_ZIP ? "в ZIP" : "отдельные файлы"} | Файлы: ${yellow(FILENAME_COUNTERPARTIES)} + ${yellow(FILENAME_INVOICES)}\n`));
+  console.log(cyan(`Режим: ${PACK_INTO_ZIP ? "в ZIP" : "отдельные файлы"} | Валидация: ${VALIDATE_XML ? yellow("ВКЛ") : gray("ВЫКЛ")}\n`));
+
+  // Загрузка XSD схемы
+  let xsdContent = null;
+  if (VALIDATE_XML) {
+    try {
+      const xsdPath = path.resolve(__dirname, "commerceml.xsd");
+      if (fs.existsSync(xsdPath)) {
+        xsdContent = fs.readFileSync(xsdPath, "utf-8");
+        console.log(green("✅ XSD схема загружена"));
+      } else {
+        console.log(yellow("⚠️  XSD файл не найден, будет выполнена только синтаксическая проверка"));
+      }
+    } catch (error) {
+      console.log(yellow(`⚠️  Не удалось загрузить XSD: ${error.message}`));
+    }
+  }
 
   const client = new Client(MigrationConfig.pg);
   await client.connect();
@@ -71,7 +143,6 @@ async function main() {
     outputStream = fs.createWriteStream(zipPath);
     archive = archiver("zip", { zlib: { level: 9 } });
 
-    // Важно: слушаем ошибки
     archive.on("error", err => { throw err; });
     archive.pipe(outputStream);
   }
@@ -84,8 +155,18 @@ async function main() {
     // ───── Контрагенты ─────
     const cpContent = [
       `<?xml version="1.0" encoding="utf-8"?>`,
-      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}">`,
-      `  <Контрагенты>`
+      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}" xmlns="urn:1C.ru:commerceml_2">`,
+      `  <Документ>`,
+      `    <Ид>counterparties</Ид>`,
+      `    <Номер>1</Номер>`,
+      `    <Дата>${today.slice(0, 10)}</Дата>`,
+      `    <ХозОперация>Прочие</ХозОперация>`,
+      `    <Роль>Продавец</Роль>`,
+      `    <Валюта>RUB</Валюта>`,
+      `    <Курс>1</Курс>`,
+      `    <Сумма>0</Сумма>`,
+      ``,
+      `    <Контрагенты>`
     ];
 
     console.log(cyan(`Генерация ${FILENAME_COUNTERPARTIES}...`));
@@ -97,32 +178,87 @@ async function main() {
 
       for (const c of res.rows) {
         const isSeller = c.id.startsWith("seller_");
-        cpContent.push(`    <Контрагент>
-      <Ид>${escapeXml(c.id)}</Ид>
-      <Наименование>${escapeXml(c.full_name || "—")}</Наименование>
-      <ПолноеНаименование>${escapeXml(c.full_name || "—")}</ПолноеНаименование>
-      ${c.inn ? `<ИНН>${escapeXml(c.inn)}</ИНН>` : ""}
-      ${c.kpp ? `<КПП>${escapeXml(c.kpp)}</КПП>` : ""}
-      ${c.ogrn ? `<ОГРН>${escapeXml(c.ogrn)}</ОГРН>` : ""}
-      <ЮридическийАдрес><Представление>${escapeXml(c.address || "—")}</Представление></ЮридическийАдрес>
-      ${c.rs ? `<РасчетныеСчета>
-        <РасчетныйСчет>
-          <НомерСчета>${escapeXml(c.rs)}</НомерСчета>
-          <Банк>
+
+        const inn = c.inn.length === 10 || c.inn.length === 12 ?
+          `<ИНН>${escapeXml(c.inn)}</ИНН>` :
+          "";
+
+        const kpp = c.kpp.length === 9 ?
+          `<КПП>${escapeXml(c.kpp)}</КПП>` :
+          "";
+
+
+        const ks = c.ks.length === 20 ?
+          `<СчетКорреспондентский>${escapeXml(c.ks)}</СчетКорреспондентский>` :
+          "";
+
+        const bank = c.bik.length === 9 ?
+          `<Банк>
+            ${ks}
             <Наименование>${escapeXml(c.bank_name || "—")}</Наименование>
-            <БИК>${escapeXml(c.bik || "")}</БИК>
-            <КоррСчет>${escapeXml(c.ks || "")}</КоррСчет>
-          </Банк>
-        </РасчетныйСчет>
-      </РасчетныеСчета>` : ""}
-      <Роль>${isSeller ? "Продавец" : "Покупатель"}</Роль>
-    </Контрагент>`);
+            <БИК>${escapeXml(c.bik)}</БИК>
+          </Банк>` :
+          "";
+        const rs = bank && c.rs && c.rs.length === 20 ?
+          `<РасчетныйСчет>
+          <НомерСчета>${escapeXml(c.rs)}</НомерСчета>
+          ${bank}
+        </РасчетныйСчет>` :
+          "";
+
+        const memo = c.memo ?
+          `<Комментарий>${escapeXml(c.memo)}</Комментарий>` :
+          "";
+
+        const name = c.inn.length === 10 ?
+          `<ОфициальноеНаименование>${escapeXml(c.full_name || "—")}</ОфициальноеНаименование>` :
+          `<ПолноеНаименование>${escapeXml(c.full_name || "—")}</ПолноеНаименование>`;
+
+        const address = c.address ?
+          `<Адрес><Представление>${escapeXml(c.address)}</Представление></Адрес>` :
+          "";
+
+        const orgn = c.ogrn && c.ogrn.length === 13 ?
+          `<ЗначенияРеквизитов><ЗначениеРеквизита><Наименование>${c.ogrn.startsWith('3') ? "ОГРНИП" : "ОГРН"}</Наименование><Значение>${escapeXml(c.ogrn)}</Значение></ЗначениеРеквизита></ЗначенияРеквизитов>` :
+          "";
+
+        cpContent.push(`
+      <Контрагент>
+        <Ид>${escapeXml(c.id)}</Ид>
+        ${name}
+        ${inn}
+        ${kpp}
+        ${address}
+        <Роль>${isSeller ? "Продавец" : "Покупатель"}</Роль>
+        ${rs}
+        ${orgn}
+        ${memo}
+      </Контрагент>`);
         totalContrags++;
       }
     }
 
-    cpContent.push(`  </Контрагенты>`, `</КоммерческаяИнформация>`);
+    cpContent.push(
+      `  </Контрагенты>`,
+      `  </Документ>`,
+      `</КоммерческаяИнформация>`
+    );
     const counterpartiesXml = cpContent.join("\n");
+
+    // Валидация контрагентов
+    if (VALIDATE_XML) {
+      console.log(cyan("\nВалидация контрагентов..."));
+      const syntaxValid = validateXmlSyntax(counterpartiesXml, "Контрагенты");
+
+      if (xsdContent && syntaxValid) {
+        const schemaValid = validateXmlWithXsd(counterpartiesXml, xsdContent, "Контрагенты");
+        if (!schemaValid) {
+          throw new Error("Валидация контрагентов по XSD не пройдена");
+        }
+      } else if (!syntaxValid) {
+        throw new Error("Синтаксическая проверка контрагентов не пройдена");
+      }
+    }
 
     if (PACK_INTO_ZIP) {
       archive.append(counterpartiesXml, { name: FILENAME_COUNTERPARTIES });
@@ -136,7 +272,7 @@ async function main() {
     // ───── Счета ─────
     const invContent = [
       `<?xml version="1.0" encoding="utf-8"?>`,
-      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}">`,
+      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}" xmlns="urn:1C.ru:commerceml_2">`,
       `  <Документы>`
     ];
 
@@ -188,6 +324,21 @@ async function main() {
     invContent.push(`  </Документы>`, `</КоммерческаяИнформация>`);
     const invoicesXml = invContent.join("\n");
 
+    // Валидация счетов
+    if (VALIDATE_XML) {
+      console.log(cyan("\nВалидация счетов..."));
+      const syntaxValid = validateXmlSyntax(invoicesXml, "Счета");
+
+      if (xsdContent && syntaxValid) {
+        const schemaValid = validateXmlWithXsd(invoicesXml, xsdContent, "Счета");
+        if (!schemaValid) {
+          throw new Error("Валидация счетов по XSD не пройдена");
+        }
+      } else if (!syntaxValid) {
+        throw new Error("Синтаксическая проверка счетов не пройдена");
+      }
+    }
+
     if (PACK_INTO_ZIP) {
       archive.append(invoicesXml, { name: FILENAME_INVOICES });
     } else {
@@ -197,9 +348,9 @@ async function main() {
     await client.query("CLOSE inv_cursor");
     await client.query("COMMIT");
 
-    // ───── Финализация архива с информированием пользователя ─────
+    // ───── Финализация архива ─────
     if (PACK_INTO_ZIP) {
-      console.log(cyan("\nЗавершаем архив и записываем на диск... (это может занять несколько секунд)"));
+      console.log(cyan("\nЗавершаем архив и записываем на диск..."));
       await archive.finalize();
       await new Promise((resolve, reject) => {
         outputStream.on("close", resolve);
@@ -216,6 +367,9 @@ async function main() {
     console.log(green("ГОТОВО!"));
     console.log(green(`Контрагентов: ${yellow(totalContrags.toLocaleString())} | Счетов: ${yellow(totalInvoices.toLocaleString())}`));
     console.log(green(`Общее время выполнения: ${yellow(totalSec + " сек")}`));
+    if (VALIDATE_XML) {
+      console.log(green(`Валидация: ${yellow("пройдена успешно")}`));
+    }
     if (PACK_INTO_ZIP) {
       console.log(green(`ZIP создан: ${yellow(zipFilename)}`));
       console.log(green(`  ├─ ${FILENAME_COUNTERPARTIES}`));

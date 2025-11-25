@@ -12,7 +12,8 @@ SELECT DISTINCT
     bank_account                                 AS rs,      -- расчётный счёт
     correspondent_account                        AS ks,      -- кор. счёт
     bik,
-    bank_name
+    bank_name,
+	memo
 FROM (
     -- Продавцы (Bosses) — с префиксом seller_
     SELECT 
@@ -25,7 +26,8 @@ FROM (
 	    bs."RS"                                   AS bank_account,
         bs."KS"                                   AS correspondent_account,
         bs."BIK"                                  AS bik,
-        bs."Bank"                                 AS bank_name
+        bs."Bank"                                 AS bank_name,
+		bs."Mem"                                  AS memo
     FROM berg."XInvoices" inv
     JOIN berg."Applications" app ON app."ID" = inv."ID_Application"
     JOIN berg."Bosses" bs ON bs."ID" = inv."ID_Boss"
@@ -47,7 +49,8 @@ FROM (
         cp."RS"                                   AS bank_account,
         cp."KS"                                   AS correspondent_account,
         cp."BIK"                                  AS bik,
-        cp."Bank"                                 AS bank_name
+        cp."Bank"                                 AS bank_name,
+		cp."Mem"                                  AS memo
     FROM berg."XInvoices" inv
     JOIN berg."Applications" app ON app."ID" = inv."ID_Application"
     JOIN berg."Customers" cp ON cp."ID" = app."ID_CustomerPay"
