@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "libxmljs2": "^0.37.0",
     "mdb-reader": "^3.1.0",
     "pg": "^8.16.3",
     "pg-copy-streams": "^7.0.0"

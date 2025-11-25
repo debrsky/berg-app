@@ -29,6 +29,38 @@ export const SchemaConfig = {
     { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
   ],
 
+  Cars: [
+    { Name: "ID", Type: "INTEGER", PK: true },                                        // AutoIncrement в Access → SERIAL в PG
+    { Name: "ID_Boss", Type: "INTEGER", NotNull: true },                                   // Грузовоперевозчик
+    { Name: "Name", Type: "VARCHAR(50)", NotNull: true },                                   // Марка в документах
+    { Name: "Nick", Type: "VARCHAR(50)", NotNull: true, Unique: true },                    // Позывной (уникальный!)
+    { Name: "IsRented", Type: "BOOLEAN", Default: "false" },
+    { Name: "RegNoGos", Type: "VARCHAR(50)", NotNull: true },                                   // Гос номер
+    { Name: "RegNoGos1", Type: "VARCHAR(50)" },                                                    // Полуприцеп
+    { Name: "Carring1", Type: "DOUBLE PRECISION", NotNull: true },                                // Грузоподъёмность основного ТС
+    { Name: "Volume1", Type: "DOUBLE PRECISION", NotNull: true },                                // Объём основного ТС
+    { Name: "Length1", Type: "DOUBLE PRECISION" },
+    { Name: "Width1", Type: "DOUBLE PRECISION" },
+    { Name: "Height1", Type: "DOUBLE PRECISION" },
+    { Name: "RegNoGos2", Type: "VARCHAR(50)" },                                                    // Прицеп
+    { Name: "Carring2", Type: "DOUBLE PRECISION" },
+    { Name: "Volume2", Type: "DOUBLE PRECISION" },
+    { Name: "Length2", Type: "DOUBLE PRECISION" },
+    { Name: "Width2", Type: "DOUBLE PRECISION" },
+    { Name: "Height2", Type: "DOUBLE PRECISION" },
+    { Name: "ID_Driver1", Type: "INTEGER", NotNull: true },                                   // Основной водитель
+    { Name: "ID_Driver2", Type: "INTEGER" },                                                        // Второй водитель (может быть NULL)
+    { Name: "IsRef", Type: "BOOLEAN", Default: "false" },                                // Рефрижератор?
+    { Name: "IsDiffCargo", Type: "BOOLEAN", Default: "false" },                                // Готовность под несовместимые грузы
+    { Name: "Mem", Type: "TEXT" },
+    { Name: "ID_CarType", Type: "INTEGER", NotNull: true },                                   // Тип машины по возможностям загрузки
+    { Name: "ID_PointType", Type: "INTEGER", NotNull: true },                                   // Категория пунктов
+    { Name: "IsUseSecondAccount", Type: "BOOLEAN", Default: "false" },
+    { Name: "BaseCode", Type: "SMALLINT" },
+    { Name: "ID_Ref", Type: "INTEGER" },
+    { Name: "ToExport", Type: "BOOLEAN", Default: "false" },
+  ],
+
   Cargos: [
     { Name: "ID", Type: "INTEGER", PK: true },
     { Name: "Name", Type: "VARCHAR(100)", NotNull: true },
@@ -282,6 +314,18 @@ export const IndexesConfig = {
     `CREATE INDEX IF NOT EXISTS idx_cargos_name ON berg."Cargos" ("Name")`,
   ],
 
+  Cars: [
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_cars_nick          ON berg."Cars" ("Nick")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_id_boss        ON berg."Cars" ("ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_regnogos       ON berg."Cars" ("RegNoGos")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_driver1        ON berg."Cars" ("ID_Driver1")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_driver2        ON berg."Cars" ("ID_Driver2") WHERE "ID_Driver2" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_cartype        ON berg."Cars" ("ID_CarType")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_pointtype      ON berg."Cars" ("ID_PointType")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_isref          ON berg."Cars" ("IsRef")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_toexport       ON berg."Cars" ("ToExport") WHERE "ToExport" = true`,
+  ],
+
   xSaldo: [
     `CREATE INDEX IF NOT EXISTS idx_xsaldo_main ON berg."xSaldo" ("ID_CustomerPay", "ID_Boss")`,
     `CREATE INDEX IF NOT EXISTS idx_xsaldo_cash ON berg."xSaldo" ("IsCash")`,
@@ -292,6 +336,7 @@ export const IndexesConfig = {
 export const TablesOrder = [
   "Bosses",
   "Cargos",
+  "Cars",
   "Customers",
   "Tariffs",
   "xSaldo",

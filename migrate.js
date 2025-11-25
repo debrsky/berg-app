@@ -4,24 +4,11 @@ import { Client } from "pg";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+
+import { MigrationConfig } from "./config.js";
 import { SchemaConfig, IndexesConfig, TablesOrder } from "./schema.config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const config = {
-  mdbPath: "../../Berg/DB/bergauto.mdb",
-  pg: {
-    host: "localhost",
-    user: "postgres",
-    password: "741621",
-    database: "bergauto",
-    port: 5432,
-  },
-  schema: "berg",
-  limit: null,          // null = все строки, например 10000 для теста
-  dropSchema: true,
-  batchSize: 2000,      // будет автоматически уменьшен при необходимости
-};
 
 // ───── Цвета ─────
 const green = t => `\x1b[32m${t}\x1b[0m`;
@@ -38,7 +25,7 @@ function formatTime(seconds) {
   return `${m}м ${s}с`;
 }
 
-function getOptimalBatchSize(columnCount, desired = config.batchSize) {
+function getOptimalBatchSize(columnCount, desired = MigrationConfig.batchSize) {
   const MAX_PARAMS = 60000;
   const calculated = Math.floor(MAX_PARAMS / columnCount);
   return Math.max(50, Math.min(desired, calculated));
@@ -48,14 +35,14 @@ function getOptimalBatchSize(columnCount, desired = config.batchSize) {
 async function main() {
   console.log(cyan("\nЗапуск миграции Access → PostgreSQL (индексы создаются ПОСЛЕ загрузки)\n"));
 
-  const client = new Client(config.pg);
+  const client = new Client(MigrationConfig.pg);
   await client.connect();
   console.log(green("PostgreSQL подключено"));
 
   await client.query("SET synchronous_commit = off");
   await client.query("SET client_min_messages = warning");
 
-  const fullPath = path.resolve(__dirname, config.mdbPath);
+  const fullPath = path.resolve(__dirname, MigrationConfig.mdbPath);
   if (!fs.existsSync(fullPath)) {
     console.error(red(`Файл MDB не найден: ${fullPath}`));
     process.exit(1);
@@ -66,14 +53,14 @@ async function main() {
   console.log(green(`MDB загружен: ${reader.getTableNames().length} таблиц найдено\n`));
 
   // ───── Пересоздание схемы ─────
-  if (config.dropSchema) {
-    await client.query(`DROP SCHEMA IF EXISTS ${config.schema} CASCADE`);
-    await client.query(`CREATE SCHEMA ${config.schema}`);
-    await client.query(`GRANT ALL ON SCHEMA ${config.schema} TO postgres`);
-    console.log(yellow(`Схема "${config.schema}" пересоздана\n`));
+  if (MigrationConfig.dropSchema) {
+    await client.query(`DROP SCHEMA IF EXISTS ${MigrationConfig.schema} CASCADE`);
+    await client.query(`CREATE SCHEMA ${MigrationConfig.schema}`);
+    await client.query(`GRANT ALL ON SCHEMA ${MigrationConfig.schema} TO postgres`);
+    console.log(yellow(`Схема "${MigrationConfig.schema}" пересоздана\n`));
   }
 
-  // ───── 1. Создание таблиц (только PK, без остальных индексов) ─────
+  // ───── 1. Создание таблиц ─────
   for (const tableName of TablesOrder) {
     const cols = SchemaConfig[tableName];
     if (!cols) continue;
@@ -91,7 +78,7 @@ async function main() {
       return line;
     });
 
-    const sql = `CREATE TABLE IF NOT EXISTS ${config.schema}."${tableName}" (${lines.join(", ")})`;
+    const sql = `CREATE TABLE IF NOT EXISTS ${MigrationConfig.schema}."${tableName}" (${lines.join(", ")})`;
     await client.query(sql);
   }
   console.log(green("Все таблицы созданы (без индексов — для максимальной скорости вставки)\n"));
@@ -108,7 +95,7 @@ async function main() {
     }
 
     const rowCount = table.rowCount ?? 0;
-    const toInsert = config.limit ? Math.min(config.limit, rowCount) : rowCount;
+    const toInsert = MigrationConfig.limit ? Math.min(MigrationConfig.limit, rowCount) : rowCount;
     if (toInsert === 0) continue;
 
     const columns = SchemaConfig[tableName].map(c => c.Name);
@@ -124,7 +111,7 @@ async function main() {
     let batch = [];
 
     try {
-      const dataIterator = table.getData({ limit: config.limit });
+      const dataIterator = table.getData({ limit: MigrationConfig.limit });
 
       for (const row of dataIterator) {
         if (inserted >= toInsert) break;
@@ -132,7 +119,7 @@ async function main() {
         const values = columns.map(col => {
           const val = row[col];
           if (val instanceof Date) {
-            return new Date(val.getTime() - 11 * 60 * 60 * 1000);
+            return new Date(val.getTime() - MigrationConfig.mdbTimezoneOffset);
           }
           return val === undefined || val === null ? null : val;
         });
@@ -150,7 +137,7 @@ async function main() {
             )
             .join("), (");
 
-          const insertSql = `INSERT INTO ${config.schema}."${tableName}" (${columnList}) VALUES (${placeholders})`;
+          const insertSql = `INSERT INTO ${MigrationConfig.schema}."${tableName}" (${columnList}) VALUES (${placeholders})`;
           await client.query(insertSql, flatValues);
           batch = [];
 
@@ -172,7 +159,7 @@ async function main() {
       console.log(`\n${green("ГОТОВО")} за ${yellow(timeSec + "с")}`);
       totalRows += inserted;
 
-      const { rows: [{ cnt }] } = await client.query(`SELECT COUNT(*)::int AS cnt FROM ${config.schema}."${tableName}"`);
+      const { rows: [{ cnt }] } = await client.query(`SELECT COUNT(*)::int AS cnt FROM ${MigrationConfig.schema}."${tableName}"`);
       console.log(`В БД: ${cnt.toLocaleString()} строк → ${cnt >= inserted ? green("OK") : red("ОШИБКА")}\n`);
 
     } catch (err) {
@@ -183,8 +170,8 @@ async function main() {
     }
   }
 
-  // ───── 3. Создание индексов (ПОСЛЕ загрузки всех данных) ─────
-  console.log(cyan("\nВсе данные загружены! Создаём индексы (это займёт время, но один раз)...\n"));
+  // ───── 3. Создание индексов ─────
+  console.log(cyan("\nВсе данные загружены! Создаём индексы...\n"));
 
   const indexStart = Date.now();
   let createdIndexes = 0;
@@ -213,7 +200,7 @@ async function main() {
   // ───── 4. ANALYZE ─────
   console.log(cyan("Запуск ANALYZE для всех таблиц..."));
   for (const tableName of TablesOrder) {
-    await client.query(`ANALYZE ${config.schema}."${tableName}"`);
+    await client.query(`ANALYZE ${MigrationConfig.schema}."${tableName}"`);
   }
   console.log(green("ANALYZE завершён — запросы будут летать!\n"));
 
