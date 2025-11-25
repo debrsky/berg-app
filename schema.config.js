@@ -279,11 +279,12 @@ export const IndexesConfig = {
   ],
 
   XInvoices: [
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_app       ON berg."XInvoices" ("ID_Application")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_date      ON berg."XInvoices" ("Date" DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_nomer     ON berg."XInvoices" ("Nomer")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_boss      ON berg."XInvoices" ("ID_Boss")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_fixed     ON berg."XInvoices" ("IsFixed")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_app            ON berg."XInvoices" ("ID_Application")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_date           ON berg."XInvoices" ("Date" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_nomer          ON berg."XInvoices" ("Nomer")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_boss           ON berg."XInvoices" ("ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_fixed          ON berg."XInvoices" ("IsFixed")`,
+    `CREATE INDEX IF NOT EXISTS ix_xinvoices_covering        ON berg."XInvoices" ("Date" ASC, "Nomer") INCLUDE ("ID", "ID_Boss", "Cost", "Name", "IsFixed", "Mem", "ID_Application") WHERE "Nomer" <> 0;`
   ],
 
   XInvoicePays: [
