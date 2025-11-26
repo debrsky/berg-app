@@ -5,3 +5,4 @@ https://www.nalog.gov.ru/rn77/about_fts/docs/15556529/
 https://v8.1c.ru/tekhnologii/obmen-dannymi-i-integratsiya/standarty-i-formaty/standarty-commerceml/commerceml-2/
 CommerceML 2
 
+https://github.com/dobromyslov/commerceml-parser
