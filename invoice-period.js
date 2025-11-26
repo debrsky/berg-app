@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ──────────────────────── НАСТРОЙКИ ────────────────────────
 const START_DATE = "2000-09-01";
-const END_DATE = "2025-09-01";
+const END_DATE = "2026-01-01";
 const BATCH_SIZE = 10000;
 const OUT_DIR = path.resolve(__dirname, "OUT");
 
@@ -207,7 +207,7 @@ async function main() {
           "";
 
         const memo = c.memo ?
-          `<Комментарий>${escapeXml(c.memo)}</Комментарий>` :
+          `<ЗначениеРеквизита><Наименование>Комментарий</Наименование><Значение>${escapeXml(c.memo)}</Значение></ЗначениеРеквизита>` :
           "";
 
         const name = c.inn.length === 10 ?
@@ -222,6 +222,13 @@ async function main() {
           `<ЗначенияРеквизитов><ЗначениеРеквизита><Наименование>${c.ogrn.startsWith('3') ? "ОГРНИП" : "ОГРН"}</Наименование><Значение>${escapeXml(c.ogrn)}</Значение></ЗначениеРеквизита></ЗначенияРеквизитов>` :
           "";
 
+        const rekv = orgn || memo ?
+          `<ЗначенияРеквизитов>
+        ${orgn}
+        ${memo}
+      </ЗначенияРеквизитов>` :
+          "";
+
         cpContent.push(`
       <Контрагент>
         <Ид>${escapeXml(c.id)}</Ид>
@@ -231,8 +238,6 @@ async function main() {
         ${address}
         <Роль>${isSeller ? "Продавец" : "Покупатель"}</Роль>
         ${rs}
-        ${orgn}
-        ${memo}
       </Контрагент>`);
         totalContrags++;
       }
@@ -272,8 +277,7 @@ async function main() {
     // ───── Счета ─────
     const invContent = [
       `<?xml version="1.0" encoding="utf-8"?>`,
-      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}" xmlns="urn:1C.ru:commerceml_2">`,
-      `  <Документы>`
+      `<КоммерческаяИнформация ВерсияСхемы="2.10" ДатаФормирования="${today}" xmlns="urn:1C.ru:commerceml_2">`
     ];
 
     console.log(cyan(`Генерация ${FILENAME_INVOICES}...`));
@@ -298,19 +302,19 @@ async function main() {
       <Курс>1</Курс>
       <Сумма>${inv.inv_cost}</Сумма>
       <Контрагенты>
-        <Контрагент><Ид>${escapeXml(inv.seller_id)}</Ид><Роль>Продавец</Роль></Контрагент>
-        <Контрагент><Ид>${escapeXml(inv.buyer_id)}</Ид><Роль>Покупатель</Роль></Контрагент>
+        <Контрагент><Ид>${escapeXml(inv.seller_id)}</Ид><ПолноеНаименование/><Роль>Продавец</Роль></Контрагент>
+        <Контрагент><Ид>${escapeXml(inv.buyer_id)}</Ид><ПолноеНаименование/><Роль>Покупатель</Роль></Контрагент>
       </Контрагенты>
       <Комментарий>${escapeXml(inv.inv_mem || "")}</Комментарий>
       <Товары>${inv.DatasArray.map(item => `
         <Товар>
           <Ид>${inv.inv_id}-${item.Pos}</Ид>
-          <Наименование>${escapeXml(item.Name)}</Наименование>
-          <Количество>${item.Amount}</Количество>
+          <Наименование>${escapeXml(item.Name.slice(0, 254))}</Наименование>
+          <БазоваяЕдиница Код="${item.mUcode}">${escapeXml(item.mU)}</БазоваяЕдиница>
+          ${item.Name.length > 255 ? `<Описание>${escapeXml(item.Name)}</Описание>` : ""}
           <ЦенаЗаЕдиницу>${item.Price}</ЦенаЗаЕдиницу>
+          <Количество>${item.Amount}</Количество>
           <Сумма>${item.Cost}</Сумма>
-          <Единица>${escapeXml(item.mU)}</Единица>
-          <СтавкаНДС>без НДС</СтавкаНДС>
         </Товар>`).join("")}
       </Товары>
     </Документ>`);
@@ -321,7 +325,7 @@ async function main() {
       console.log(`Пакет ${yellow(batch.toString().padStart(3))} | Счетов: ${yellow(res.rowCount.toString().padStart(5))} | ${yellow(elapsed + "мс")} | Всего: ${gray(totalInvoices.toLocaleString())}`);
     }
 
-    invContent.push(`  </Документы>`, `</КоммерческаяИнформация>`);
+    invContent.push(`</КоммерческаяИнформация>`);
     const invoicesXml = invContent.join("\n");
 
     // Валидация счетов

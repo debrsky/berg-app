@@ -59,5 +59,6 @@ FROM (
       AND inv."Date" < p.end_date
       AND inv."Nomer" <> 0
 ) t
--- WHERE full_name IS NOT NULL
+-- WHERE id_with_prefix = '11143'
+
 ORDER BY full_name;
