@@ -21,7 +21,7 @@ const PACK_INTO_ZIP = false;
 const FILENAME_COUNTERPARTIES = "counterparties.xml";
 const FILENAME_INVOICES = "invoices.xml";
 const USE_PERIOD_IN_FILENAME = true;
-const VALIDATE_XML = false; // ← Включить/выключить валидацию
+const VALIDATE_XML = true; // ← Включить/выключить валидацию
 
 // ─────────────────────────────────────────────────────────────
 
@@ -309,7 +309,7 @@ async function main() {
       <Товары>${inv.DatasArray.map(item => `
         <Товар>
           <Ид>${inv.inv_id}-${item.Pos}</Ид>
-          <Наименование>${escapeXml(item.Name.slice(0, 254))}</Наименование>
+          <Наименование>${escapeXml(item.Name.slice(0, 255))}</Наименование>
           <БазоваяЕдиница Код="${item.mUcode}">${escapeXml(item.mU)}</БазоваяЕдиница>
           ${item.Name.length > 255 ? `<Описание>${escapeXml(item.Name)}</Описание>` : ""}
           <ЦенаЗаЕдиницу>${item.Price}</ЦенаЗаЕдиницу>
