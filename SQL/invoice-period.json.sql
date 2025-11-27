@@ -64,7 +64,7 @@ SELECT
                         'Price', ROUND(inv."Cost"::numeric, 2),
                         'Cost', ROUND(inv."Cost"::numeric, 2),
                         'mUcode', 796,
-                        'mU', 'шт.'
+                        'mU', 'шт'
                     ))
                 ELSE l.datas_array
             END
