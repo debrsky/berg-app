@@ -17,9 +17,10 @@ const BATCH_SIZE = 10000;
 const OUT_DIR = path.resolve(__dirname, "OUT");
 
 // === УПРАВЛЯЮЩИЕ КОНСТАНТЫ ===
-const PACK_INTO_ZIP = false;
+const PACK_INTO_ZIP = true;
 const FILENAME_COUNTERPARTIES = "counterparties.xml";
 const FILENAME_INVOICES = "invoices.xml";
+const FILENAME_README = "readme.txt";
 const USE_PERIOD_IN_FILENAME = true;
 const VALIDATE_XML = true; // ← Включить/выключить валидацию
 
@@ -68,6 +69,43 @@ const escapeXml = (s) => s == null ? "" : String(s)
   .replace(/>/g, "&gt;")
   .replace(/"/g, "&quot;")
   .replace(/'/g, "&apos;");
+
+// Функция создания readme.txt
+function createReadmeContent(totalContrags, totalInvoices, validationStatus) {
+  return `CommerceML 2.10 - Экспорт данных
+${"=".repeat(50)}
+Описание формата: https://v8.1c.ru/tekhnologii/obmen-dannymi-i-integratsiya/standarty-i-formaty/standarty-commerceml/commerceml-2/
+
+Дата выгрузки: ${today}
+Период данных: ${START_DATE} - ${END_DATE}
+
+Общая информация:
+- Версия схемы: CommerceML 2.10
+- Валидация: ${validationStatus}
+- Кодировка: UTF-8
+
+Файлы:
+
+1. ${FILENAME_COUNTERPARTIES}
+   - Контрагенты (продавцы и покупатели)
+   - Особенности:
+     * Идентификаторы контрагентов формируются как 'seller_XXX' для продавцов
+     * Для юрлиц (ИНН=10 цифр) используется <ОфициальноеНаименование>
+     * Для физлиц/ИП (ИНН=12 цифр) используется <ПолноеНаименование>
+     * Банковские реквизиты включаются только при наличии БИК (9 цифр)
+     * Расчетные счета включаются только при наличии номера счета (20 цифр)
+     * <ОГРН>, <ОГРНИП>, <Комментарий> не используются, в связи с ограничением формата (не проходят валидацию)
+   - Всего записей: ${totalContrags}
+
+2. ${FILENAME_INVOICES}
+   - Счета на оплату
+   - Особенности:
+     * Идентификаторы товаров формируются как 'IDсчета-Pos'
+     * Наименование товара ограничено 255 символов -- обрезается
+     * При превышении 255 символов полное название переносится в <Описание>
+   - Всего записей: ${totalInvoices}
+`;
+}
 
 // Функция валидации XML по XSD
 function validateXmlWithXsd(xmlContent, xsdContent, documentType) {
@@ -147,6 +185,11 @@ async function main() {
     archive.pipe(outputStream);
   }
 
+  // Переменные для статистики
+  let totalContrags = 0;
+  let totalInvoices = 0;
+  let validationStatus = "не выполнена";
+
   try {
     await client.query("BEGIN");
     await client.query("DECLARE contrag_cursor NO SCROLL CURSOR FOR " + sqlContrags, [START_DATE, END_DATE]);
@@ -170,7 +213,7 @@ async function main() {
     ];
 
     console.log(cyan(`Генерация ${FILENAME_COUNTERPARTIES}...`));
-    let totalContrags = 0;
+    totalContrags = 0;
 
     while (true) {
       const res = await client.query(`FETCH FORWARD ${BATCH_SIZE} FROM contrag_cursor`);
@@ -206,10 +249,6 @@ async function main() {
         </РасчетныйСчет>` :
           "";
 
-        const memo = c.memo ?
-          `<ЗначениеРеквизита><Наименование>Комментарий</Наименование><Значение>${escapeXml(c.memo)}</Значение></ЗначениеРеквизита>` :
-          "";
-
         const name = c.inn.length === 10 ?
           `<ОфициальноеНаименование>${escapeXml(c.full_name || "—")}</ОфициальноеНаименование>` :
           `<ПолноеНаименование>${escapeXml(c.full_name || "—")}</ПолноеНаименование>`;
@@ -218,16 +257,20 @@ async function main() {
           `<Адрес><Представление>${escapeXml(c.address)}</Представление></Адрес>` :
           "";
 
-        const orgn = c.ogrn && c.ogrn.length === 13 ?
-          `<ЗначенияРеквизитов><ЗначениеРеквизита><Наименование>${c.ogrn.startsWith('3') ? "ОГРНИП" : "ОГРН"}</Наименование><Значение>${escapeXml(c.ogrn)}</Значение></ЗначениеРеквизита></ЗначенияРеквизитов>` :
-          "";
+        //   const orgn = c.ogrn && c.ogrn.length === 13 ?
+        //     `<ЗначениеРеквизита><Наименование>${c.ogrn.startsWith('3') ? "ОГРНИП" : "ОГРН"}</Наименование><Значение>${escapeXml(c.ogrn)}</Значение></ЗначениеРеквизита>` :
+        //     "";
 
-        const rekv = orgn || memo ?
-          `<ЗначенияРеквизитов>
-        ${orgn}
-        ${memo}
-      </ЗначенияРеквизитов>` :
-          "";
+        //     const memo = c.memo ?
+        //     `<ЗначениеРеквизита><Наименование>Комментарий</Наименование><Значение>${escapeXml(c.memo)}</Значение></ЗначениеРеквизита>` :
+        //     "";
+
+        //   const rekv = orgn || memo ?
+        //     `<ЗначенияРеквизитов>
+        //   ${orgn}
+        //   ${memo}
+        // </ЗначенияРеквизитов>` :
+        //     "";
 
         cpContent.push(`
       <Контрагент>
@@ -251,6 +294,7 @@ async function main() {
     const counterpartiesXml = cpContent.join("\n");
 
     // Валидация контрагентов
+    let counterpartiesValid = true;
     if (VALIDATE_XML) {
       console.log(cyan("\nВалидация контрагентов..."));
       const syntaxValid = validateXmlSyntax(counterpartiesXml, "Контрагенты");
@@ -258,9 +302,11 @@ async function main() {
       if (xsdContent && syntaxValid) {
         const schemaValid = validateXmlWithXsd(counterpartiesXml, xsdContent, "Контрагенты");
         if (!schemaValid) {
+          counterpartiesValid = false;
           throw new Error("Валидация контрагентов по XSD не пройдена");
         }
       } else if (!syntaxValid) {
+        counterpartiesValid = false;
         throw new Error("Синтаксическая проверка контрагентов не пройдена");
       }
     }
@@ -281,7 +327,7 @@ async function main() {
     ];
 
     console.log(cyan(`Генерация ${FILENAME_INVOICES}...`));
-    let totalInvoices = 0;
+    totalInvoices = 0;
     let batch = 0;
 
     while (true) {
@@ -305,7 +351,7 @@ async function main() {
         <Контрагент><Ид>${escapeXml(inv.seller_id)}</Ид><ПолноеНаименование/><Роль>Продавец</Роль></Контрагент>
         <Контрагент><Ид>${escapeXml(inv.buyer_id)}</Ид><ПолноеНаименование/><Роль>Покупатель</Роль></Контрагент>
       </Контрагенты>
-      <Комментарий>${escapeXml(inv.inv_mem || "")}</Комментарий>
+      ${inv.inv_mem ? `<Комментарий>${escapeXml(inv.inv_mem)}</Комментарий>` : ""}
       <Товары>${inv.DatasArray.map(item => `
         <Товар>
           <Ид>${inv.inv_id}-${item.Pos}</Ид>
@@ -329,6 +375,7 @@ async function main() {
     const invoicesXml = invContent.join("\n");
 
     // Валидация счетов
+    let invoicesValid = true;
     if (VALIDATE_XML) {
       console.log(cyan("\nВалидация счетов..."));
       const syntaxValid = validateXmlSyntax(invoicesXml, "Счета");
@@ -336,9 +383,11 @@ async function main() {
       if (xsdContent && syntaxValid) {
         const schemaValid = validateXmlWithXsd(invoicesXml, xsdContent, "Счета");
         if (!schemaValid) {
+          invoicesValid = false;
           throw new Error("Валидация счетов по XSD не пройдена");
         }
       } else if (!syntaxValid) {
+        invoicesValid = false;
         throw new Error("Синтаксическая проверка счетов не пройдена");
       }
     }
@@ -351,6 +400,21 @@ async function main() {
 
     await client.query("CLOSE inv_cursor");
     await client.query("COMMIT");
+
+    // ───── Создание readme.txt ─────
+    validationStatus = VALIDATE_XML ?
+      (counterpartiesValid && invoicesValid ? "успешно пройдена" : "есть ошибки") :
+      "отключена";
+
+    const readmeContent = createReadmeContent(totalContrags, totalInvoices, validationStatus);
+
+    if (PACK_INTO_ZIP) {
+      archive.append(readmeContent, { name: FILENAME_README });
+    } else {
+      fs.writeFileSync(path.join(OUT_DIR, FILENAME_README), readmeContent, "utf-8");
+    }
+
+    console.log(green(`📝 ${FILENAME_README} создан`));
 
     // ───── Финализация архива ─────
     if (PACK_INTO_ZIP) {
@@ -377,11 +441,13 @@ async function main() {
     if (PACK_INTO_ZIP) {
       console.log(green(`ZIP создан: ${yellow(zipFilename)}`));
       console.log(green(`  ├─ ${FILENAME_COUNTERPARTIES}`));
-      console.log(green(`  └─ ${FILENAME_INVOICES}`));
+      console.log(green(`  ├─ ${FILENAME_INVOICES}`));
+      console.log(green(`  └─ ${FILENAME_README}`));
     } else {
       console.log(green(`Файлы сохранены в папке OUT:`));
       console.log(green(`  ├─ ${FILENAME_COUNTERPARTIES}`));
-      console.log(green(`  └─ ${FILENAME_INVOICES}`));
+      console.log(green(`  ├─ ${FILENAME_INVOICES}`));
+      console.log(green(`  └─ ${FILENAME_README}`));
     }
     console.log("═".repeat(90) + "\n");
 
