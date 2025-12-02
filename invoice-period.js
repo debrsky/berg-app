@@ -11,8 +11,8 @@ import libxml from "libxmljs2";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ──────────────────────── НАСТРОЙКИ ────────────────────────
-const START_DATE = "2000-09-01";
-const END_DATE = "2026-01-01";
+const START_DATE = "2025-11-03";
+const END_DATE = "2025-11-07";
 const BATCH_SIZE = 10000;
 const OUT_DIR = path.resolve(__dirname, "OUT");
 

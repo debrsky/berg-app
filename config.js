@@ -3,8 +3,8 @@ export const MigrationConfig = {
   // Путь к MDB-файлу (относительно batch.js)
   mdbPath: "../../Berg/DB/bergauto.mdb",
 
-  // Access хранит даты в странном часовом поясе (обычно UTC-11). Корректируем:
-  mdbTimezoneOffset: 11 * 60 * 60 * 1000,
+  // Access хранит даты в локальном часовом поясе. Корректируем:
+  mdbTimezoneOffset: 10 * 60 * 60 * 1000,
 
   // Подключение к PostgreSQL
   pg: {
