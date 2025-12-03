@@ -1,14 +1,17 @@
 /*
-    Этот вариант использует ассоциативные массивы (O(1) доступ) для скорости 
-    и отдельный FIFO-массив для корректного зачета предоплаты, что решает проблему 
+    Этот вариант использует hstore (O(1) доступ) для скорости и отдельный 
+    FIFO-массив для корректного зачета предоплаты, что решает проблему 
     с медленным линейным поиском и избегает накладных расходов SQL-движка.
     -- 
     сделано gemini.google.com
 
-    Скорость 4 с против 7 с с JSONB-версией.
+    Скорость 10 с против 27 с с JSONB-версией.
 
     Резервы оптимизации -- вероятно, только распараллелить по id_seller.  
 */
+
+-- Предполагается, что расширение hstore уже установлено в вашей базе данных:
+-- CREATE EXTENSION hstore; 
 
 DROP FUNCTION IF EXISTS public.get_operations(integer, integer);
 
@@ -50,22 +53,15 @@ AS $BODY$
 DECLARE
     rec RECORD;
     
-    -- Ассоциативный массив для быстрого доступа O(1): invoice_id => debt_amount
-    -- Индексируется по ID счета (integer)
-    v_inv_debt_by_id numeric[] := '{}';
+    -- 1. HSTORE для быстрого доступа O(1): 'invoice_id' => 'debt_amount'
+    v_invoice_debt_map hstore := ''::hstore;
     
-    -- Простой массив для порядка FIFO (First-In, First-Out)
+    -- 2. Простой массив для порядка FIFO (First-In, First-Out)
     v_fifo_invoices integer[] := '{}'::integer[];
     
     v_op_seq_num integer := 0;
 
-    v_id_seller integer;
-    v_id_payer integer;
-    v_op_date date;
-    v_op_date_ts timestamp without time zone;
-    
     v_id_invoice integer;
-    v_inv_amount numeric;
     v_op_type integer;
     v_op_amount numeric;
     
@@ -82,6 +78,7 @@ DECLARE
     v_inv_debt_before numeric := 0;
     v_inv_debt_after numeric := 0;
 
+    v_invoice_id_text text; -- Переменная для ключа hstore
     prev_id_seller integer;
     prev_id_payer integer;
 BEGIN
@@ -112,8 +109,8 @@ BEGIN
             v_balance_after := 0;
             v_prepayment_after := 0;
             
-            -- Сброс in-memory структур
-            v_inv_debt_by_id := '{}'; 
+            -- Сброс in-memory структур (HSTORE и FIFO)
+            v_invoice_debt_map := ''::hstore; 
             v_fifo_invoices := '{}'::integer[];
         END IF;
         
@@ -124,9 +121,11 @@ BEGIN
         v_id_invoice := rec.id_invoice;
         v_op_type := rec.op_type;
         v_op_amount := COALESCE(rec.op_amount, 0);
+        v_invoice_id_text := v_id_invoice::text; -- Ключ для HSTORE
 
         -- Быстрое получение долга по ключу инвойса (O(1))
-        v_inv_debt_before := COALESCE(v_inv_debt_by_id[v_id_invoice], 0);
+        -- Преобразуем текстовое значение HSTORE обратно в numeric
+        v_inv_debt_before := COALESCE((v_invoice_debt_map -> v_invoice_id_text)::numeric, 0);
 
         v_charge_amount := 0;
         v_payment_amount := 0;
@@ -134,10 +133,8 @@ BEGIN
         v_prepayment_applied := 0;
 
         IF v_op_type = 1 THEN
-            -- Начисление
             v_charge_amount := v_op_amount;
         ELSIF v_op_type = 2 THEN
-            -- Оплата
             v_payment_amount := LEAST(v_op_amount, v_inv_debt_before);
             v_prepayment_added := v_op_amount - v_payment_amount;
         END IF;
@@ -147,24 +144,23 @@ BEGIN
         v_inv_debt_after := COALESCE(v_inv_debt_before, 0) + COALESCE(v_charge_amount, 0) - COALESCE(v_payment_amount, 0);
         v_prepayment_after := COALESCE(v_prepayment_before, 0) + COALESCE(v_prepayment_added, 0) - COALESCE(v_prepayment_applied, 0);
 
-        -- Обновление Ассоциативного Массива
+        -- Обновление HSTORE
         IF v_inv_debt_after = 0 THEN
-            -- Удаляем запись, если долг 0
-            v_inv_debt_by_id[v_id_invoice] := NULL;
-            -- Удаляем ID из FIFO-массива (линейный поиск неизбежен, но выполняется редко)
+            -- Удаляем запись из HSTORE
+            v_invoice_debt_map := v_invoice_debt_map - v_invoice_id_text;
+            -- Удаляем ID из FIFO-массива
             v_fifo_invoices := array_remove(v_fifo_invoices, v_id_invoice); 
         ELSIF v_inv_debt_before = 0 AND v_inv_debt_after > 0 THEN
-            -- Создаем новый долг
-            v_inv_debt_by_id[v_id_invoice] := v_inv_debt_after;
+            -- Создаем новый долг (преобразуем numeric в text)
+            v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
             -- Добавляем в конец FIFO-массива
             v_fifo_invoices := array_append(v_fifo_invoices, v_id_invoice);
         ELSE 
             -- Обновляем существующий долг
-            v_inv_debt_by_id[v_id_invoice] := v_inv_debt_after;
+            v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
         END IF;
 
         -- Возврат строки (Основная операция)
-        -- JSONB-столбцы возвращаем NULL для максимальной скорости
         debt_invoices_before := NULL; debt_invoices_after := NULL; 
         
         op_seq_num := v_op_seq_num;
@@ -197,15 +193,15 @@ BEGIN
         -------------------------------------------------------
         IF (v_prepayment_after > 0 AND array_length(v_fifo_invoices, 1) > 0) THEN
             
-            -- Итерируем по FIFO-массиву
             FOR i IN 1..array_length(v_fifo_invoices, 1) LOOP
                 EXIT WHEN v_prepayment_after <= 0;
                 
                 v_id_invoice := v_fifo_invoices[i];
-                -- Быстро получаем долг для зачета (O(1))
-                v_inv_debt_before := COALESCE(v_inv_debt_by_id[v_id_invoice], 0);
+                v_invoice_id_text := v_id_invoice::text;
 
-                -- Если счет уже закрыт, пропускаем
+                -- Быстро получаем долг для зачета (O(1))
+                v_inv_debt_before := COALESCE((v_invoice_debt_map -> v_invoice_id_text)::numeric, 0);
+
                 CONTINUE WHEN v_inv_debt_before = 0;
                 
                 v_op_seq_num := v_op_seq_num + 1;
@@ -225,8 +221,8 @@ BEGIN
                 v_inv_debt_after := v_inv_debt_before - v_payment_amount;
                 v_prepayment_after := v_prepayment_before - v_prepayment_applied;
 
-                -- Обновление Ассоциативного Массива после зачета
-                v_inv_debt_by_id[v_id_invoice] := v_inv_debt_after;
+                -- Обновление HSTORE после зачета
+                v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
 
                 -- Возврат строки (зачет)
                 debt_invoices_before := NULL; debt_invoices_after := NULL;
@@ -238,7 +234,7 @@ BEGIN
                 op_date_ts := rec.op_date_ts;
                 op_type := v_op_type;
                 id_invoice := v_id_invoice;
-                inv_amount := NULL; -- для зачета
+                inv_amount := NULL; 
                 op_amount := v_op_amount;
                 
                 balance_before := v_balance_before;
@@ -258,7 +254,8 @@ BEGIN
             END LOOP;
             
             -- Финальная очистка FIFO-массива: оставляем только счета с остаточным долгом
-            v_fifo_invoices := array_agg(id) FROM unnest(v_fifo_invoices) AS id WHERE COALESCE(v_inv_debt_by_id[id], 0) > 0;
+            -- Получаем список ID из HSTORE, где долг > 0, и делаем array_agg
+            v_fifo_invoices := array_agg(id::integer) FROM each(v_invoice_debt_map) AS map(id, debt) WHERE debt::numeric > 0;
         END IF;
 
         prev_id_seller := rec.id_seller;
