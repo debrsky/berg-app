@@ -73,13 +73,10 @@ DECLARE
 
 	id_invoice_key text;
 
+	prev_id_seller integer;
+	prev_id_payer integer;
 BEGIN
     RAISE NOTICE 'Функция вызвана с p_id_payer=%, p_id_seller=%', p_id_payer, p_id_seller;
-
-	-- Начальные значения, чтобы не было NULL
-	v_balance_after := 0;
-	v_prepayment_after := 0;
-	v_debt_invoices_after := '{}'::jsonb;
 
     FOR rec IN
         WITH invoices AS (
@@ -147,6 +144,17 @@ BEGIN
         ORDER BY id_seller, id_payer, op_date, ord, op_date_ts
 		
     LOOP
+        -- Сброс при смене контрагента
+        IF prev_id_seller IS DISTINCT FROM rec.id_seller
+	        OR prev_id_payer IS DISTINCT FROM rec.id_payer THEN
+
+			v_op_seq_num := 0;
+			-- Начальные значения, чтобы не было NULL
+			v_balance_after := 0;
+			v_prepayment_after := 0;
+			v_debt_invoices_after := '{}'::jsonb;
+        END IF;
+		
 		v_op_seq_num := v_op_seq_num + 1;
 		
 		v_balance_before := v_balance_after;
@@ -345,6 +353,9 @@ BEGIN
                 EXIT WHEN v_prepayment_after <= 0;
 			END LOOP;
 		END IF;
+
+		prev_id_seller := rec.id_seller;
+        prev_id_payer := rec.id_payer;		
     END LOOP;
     RETURN;
 END;
