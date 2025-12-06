@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS bergapp.operations (
 );
 
 -- Индексы для ускорения выборок из готовой таблицы
-CREATE INDEX operations_seller_payer_seq_idx ON bergapp.operations (id_seller, id_payer, op_seq_num DESC);
+-- CREATE INDEX operations_seller_payer_seq_idx ON bergapp.operations (id_seller, id_payer, op_seq_num DESC);
 -- CREATE INDEX IF NOT EXISTS idx_operations_seller_payer ON bergapp.operations(id_seller, id_payer);
 -- CREATE INDEX IF NOT EXISTS idx_operations_date ON bergapp.operations(op_date);
 
