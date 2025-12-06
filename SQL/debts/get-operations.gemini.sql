@@ -13,9 +13,10 @@
 -- Предполагается, что расширение hstore уже установлено в вашей базе данных:
 -- CREATE EXTENSION hstore; 
 
-DROP FUNCTION IF EXISTS public.get_operations(integer, integer);
+SET LOCAL search_path TO bergapp, public;
+DROP FUNCTION IF EXISTS get_operations(integer, integer);
 
-CREATE OR REPLACE FUNCTION public.get_operations(
+CREATE OR REPLACE FUNCTION get_operations(
     p_id_payer integer DEFAULT NULL::integer,
     p_id_seller integer DEFAULT NULL::integer)
     RETURNS TABLE(
@@ -82,17 +83,18 @@ DECLARE
     prev_id_seller integer;
     prev_id_payer integer;
 BEGIN
+    SET LOCAL search_path TO bergauto, public;
 
     FOR rec IN 
         -- Исходный CTE operations
         SELECT * FROM (
             WITH invoices AS (
                 SELECT inv."ID" AS f_id_invoice, inv."ID_Boss" AS f_id_seller, app."ID_CustomerPay" AS f_id_payer, inv."Date"::date AS f_op_date, inv."Date" AS f_op_date_ts, ROUND(inv."Cost"::numeric, 2) AS f_amount, ROUND(inv."Cost"::numeric, 2) AS f_inv_amount
-                FROM berg."XInvoices" inv JOIN berg."Applications" app ON app."ID" = inv."ID_Application"
+                FROM "XInvoices" inv JOIN "Applications" app ON app."ID" = inv."ID_Application"
                 WHERE inv."Nomer" IS NOT NULL AND inv."Nomer" > 0 AND (p_id_payer IS NULL OR app."ID_CustomerPay" = p_id_payer) AND (p_id_seller IS NULL OR inv."ID_Boss" = p_id_seller)
             ), payments AS (
                 SELECT invp."ID_XInvoice" AS f_id_invoice, inv."ID_Boss" AS f_id_seller, app."ID_CustomerPay" AS f_id_payer, invp."Date"::date AS f_op_date, invp."Date" AS f_op_date_ts, ROUND(invp."Cost"::numeric, 2) AS f_amount_paid, ROUND(inv."Cost"::numeric, 2) AS f_inv_amount
-                FROM berg."XInvoicePays" invp JOIN berg."XInvoices" inv ON inv."ID" = invp."ID_XInvoice" JOIN berg."Applications" app ON app."ID" = inv."ID_Application"
+                FROM "XInvoicePays" invp JOIN "XInvoices" inv ON inv."ID" = invp."ID_XInvoice" JOIN "Applications" app ON app."ID" = inv."ID_Application"
                 WHERE inv."Nomer" IS NOT NULL AND inv."Nomer" > 0 AND (p_id_payer IS NULL OR app."ID_CustomerPay" = p_id_payer) AND (p_id_seller IS NULL OR inv."ID_Boss" = p_id_seller)
             ), operations AS (
                 SELECT f_id_seller AS id_seller, f_id_payer AS id_payer, f_id_invoice AS id_invoice, f_op_date AS op_date, f_op_date_ts as op_date_ts, 1 AS op_type, 10 AS ord, f_inv_amount AS inv_amount, f_amount AS op_amount FROM invoices
@@ -161,7 +163,14 @@ BEGIN
         END IF;
 
         -- Возврат строки (Основная операция)
-        debt_invoices_before := NULL; debt_invoices_after := NULL; 
+        debt_invoices_before := NULL; 
+		-- debt_invoices_after := v_invoice_debt_map; 
+		debt_invoices_after := COALESCE(
+			(SELECT jsonb_object_agg(key, value::numeric)
+			FROM each(v_invoice_debt_map) AS t(key, value)),
+			'{}'::jsonb
+		);
+		
         
         op_seq_num := v_op_seq_num;
         id_seller := rec.id_seller;
@@ -222,10 +231,22 @@ BEGIN
                 v_prepayment_after := v_prepayment_before - v_prepayment_applied;
 
                 -- Обновление HSTORE после зачета
-                v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
+				IF v_inv_debt_after = 0 THEN
+				    v_invoice_debt_map := delete(v_invoice_debt_map, v_invoice_id_text); -- удалить полностью
+				    v_fifo_invoices := array_remove(v_fifo_invoices, v_id_invoice);
+				ELSE
+				    v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
+				END IF;
 
                 -- Возврат строки (зачет)
-                debt_invoices_before := NULL; debt_invoices_after := NULL;
+                debt_invoices_before := NULL; 
+				-- debt_invoices_after := v_invoice_debt_map; 
+				debt_invoices_after := COALESCE(
+					(SELECT jsonb_object_agg(key, value::numeric)
+					FROM each(v_invoice_debt_map) AS t(key, value)),
+					'{}'::jsonb
+				);
+				
                 
                 op_seq_num := v_op_seq_num;
                 id_seller := rec.id_seller;
@@ -265,5 +286,3 @@ BEGIN
     RETURN;
 END;
 $BODY$;
-
-ALTER FUNCTION public.get_operations(integer, integer) OWNER TO postgres;
