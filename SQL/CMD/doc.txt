@@ -1,0 +1,13 @@
+Пароли хранятся в файле "C:\Users\user\AppData\Roaming\postgresql\pgpass.conf"
+# Формат: hostname:port:database:username:password
+# *.example.com:5432:production:*:prodpass
+
+
+Команда создания дампа базы данных
+
+pg_dump -h localhost -p 5432 -U postgres -d bergauto --schema=berg --no-owner --no-privileges --no-acl -F c -f bergauto.postgres.backup -v
+
+Команда восстановления из дампа
+
+pg_restore -h pg4.sweb.ru -p 5433 -U debrskyru -d debrskyru --no-owner bergauto.postgres.backup -v
+
