@@ -35,9 +35,31 @@ function getOptimalBatchSize(columnCount, desired = MigrationConfig.batchSize) {
 async function main() {
   console.log(cyan("\nЗапуск миграции Access → PostgreSQL (индексы создаются ПОСЛЕ загрузки)\n"));
 
-  const client = new Client(MigrationConfig.pg);
+  // 1. Подключаемся к сервисной базе
+  const adminClient = new Client(MigrationConfig.pg);
+
+  await adminClient.connect();
+
+  // 2. Проверяем, существует ли база
+  const dbName = MigrationConfig.pg_dbName;
+  const checkDbSql = `
+        SELECT 1 FROM pg_database WHERE datname = $1
+    `;
+  const result = await adminClient.query(checkDbSql, [dbName]);
+
+  if (result.rowCount === 0) {
+    console.log(yellow(`Database "${dbName}" does not exist. Creating...`));
+    await adminClient.query(`CREATE DATABASE ${dbName}`);
+    console.log(yellow(`Database "${dbName}" created.`));
+  } else {
+    console.log(green(`Database "${dbName}" already exists.`));
+  }
+
+  await adminClient.end();
+
+  const client = new Client({ ...MigrationConfig.pg, database: dbName });
   await client.connect();
-  console.log(green("PostgreSQL подключено"));
+  console.log(green(`PostgreSQL подключено к базе данных "${dbName}"\n`));
 
   await client.query("SET synchronous_commit = off");
   await client.query("SET client_min_messages = warning");
@@ -172,6 +194,8 @@ async function main() {
 
   // ───── 3. Создание индексов ─────
   console.log(cyan("\nВсе данные загружены! Создаём индексы...\n"));
+
+  await client.query(`SET search_path TO ${MigrationConfig.schema}`);
 
   const indexStart = Date.now();
   let createdIndexes = 0;

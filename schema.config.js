@@ -30,8 +30,8 @@ export const SchemaConfig = {
   ],
 
   Cars: [
-    { Name: "ID", Type: "INTEGER", PK: true },                                        // AutoIncrement в Access → SERIAL в PG
-    { Name: "ID_Boss", Type: "INTEGER", NotNull: true },                                   // Грузовоперевозчик
+    { Name: "ID", Type: "INTEGER", PK: true },
+    { Name: "ID_Boss", Type: "INTEGER", NotNull: true }, // Перевозчик
     { Name: "Name", Type: "VARCHAR(50)", NotNull: true },                                   // Марка в документах
     { Name: "Nick", Type: "VARCHAR(50)", NotNull: true, Unique: true },                    // Позывной (уникальный!)
     { Name: "IsRented", Type: "BOOLEAN", Default: "false" },
@@ -258,78 +258,76 @@ export const SchemaConfig = {
 // Все индексы — теперь в одном месте!
 // =========================================
 
-// В файле schema.config.js — замени весь объект IndexesConfig на этот:
 export const IndexesConfig = {
   Applications: [
-    `CREATE INDEX IF NOT EXISTS idx_applications_date_reg          ON berg."Applications" ("DateReg")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_datework_in       ON berg."Applications" ("DateWorkIn")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_datework_out      ON berg."Applications" ("DateWorkOut")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_customer          ON berg."Applications" ("ID_Customer")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_customer_pay      ON berg."Applications" ("ID_CustomerPay")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_customer_out      ON berg."Applications" ("ID_CustomerOut")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_point_in          ON berg."Applications" ("ID_PointIn")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_point_out         ON berg."Applications" ("ID_PointOut")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_cargo             ON berg."Applications" ("ID_Cargo")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_tariff            ON berg."Applications" ("ID_Tariff")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_stage             ON berg."Applications" ("Stage")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_nomer             ON berg."Applications" ("Nomer")`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_customer_date     ON berg."Applications" ("ID_Customer", "DateReg" DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_pay_date          ON berg."Applications" ("ID_CustomerPay", "DateReg" DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_applications_period            ON berg."Applications" ("DateWorkIn", "DateWorkOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_date_reg          ON "Applications" ("DateReg")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_datework_in       ON "Applications" ("DateWorkIn")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_datework_out      ON "Applications" ("DateWorkOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer          ON "Applications" ("ID_Customer")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_pay      ON "Applications" ("ID_CustomerPay")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_out      ON "Applications" ("ID_CustomerOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_point_in          ON "Applications" ("ID_PointIn")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_point_out         ON "Applications" ("ID_PointOut")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_cargo             ON "Applications" ("ID_Cargo")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_tariff            ON "Applications" ("ID_Tariff")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_stage             ON "Applications" ("Stage")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_nomer             ON "Applications" ("Nomer")`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_customer_date     ON "Applications" ("ID_Customer", "DateReg" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_pay_date          ON "Applications" ("ID_CustomerPay", "DateReg" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_applications_period            ON "Applications" ("DateWorkIn", "DateWorkOut")`,
   ],
 
   XInvoices: [
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_app            ON berg."XInvoices" ("ID_Application")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_date           ON berg."XInvoices" ("Date" DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_nomer          ON berg."XInvoices" ("Nomer")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_boss           ON berg."XInvoices" ("ID_Boss")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoices_fixed          ON berg."XInvoices" ("IsFixed")`,
-    `CREATE INDEX IF NOT EXISTS ix_xinvoices_covering        ON berg."XInvoices" ("Date" ASC, "Nomer") INCLUDE ("ID", "ID_Boss", "Cost", "Name", "IsFixed", "Mem", "ID_Application") WHERE "Nomer" <> 0;`
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_app            ON "XInvoices" ("ID_Application")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_date           ON "XInvoices" ("Date" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_nomer          ON "XInvoices" ("Nomer")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_boss           ON "XInvoices" ("ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoices_fixed          ON "XInvoices" ("IsFixed")`,
+    `CREATE INDEX IF NOT EXISTS ix_xinvoices_covering        ON "XInvoices" ("Date" ASC, "Nomer") INCLUDE ("ID", "ID_Boss", "Cost", "Name", "IsFixed", "Mem", "ID_Application") WHERE "Nomer" <> 0;`
   ],
 
   XInvoicePays: [
-    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_invoice ON berg."XInvoicePays" ("ID_XInvoice")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_date     ON berg."XInvoicePays" ("Date" DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_invoice ON "XInvoicePays" ("ID_XInvoice")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicepays_date     ON "XInvoicePays" ("Date" DESC)`,
   ],
 
   XInvoiceDatas: [
-    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_invoice ON berg."XInvoiceDatas" ("ID_XInvoice")`,
-    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_car     ON berg."XInvoiceDatas" ("ID_Car") WHERE "ID_Car" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_invoice ON "XInvoiceDatas" ("ID_XInvoice")`,
+    `CREATE INDEX IF NOT EXISTS idx_xinvoicedatas_car     ON "XInvoiceDatas" ("ID_Car") WHERE "ID_Car" IS NOT NULL`,
   ],
 
   Customers: [
-    `CREATE INDEX IF NOT EXISTS idx_customers_name   ON berg."Customers" ("NameShort")`,
-    `CREATE INDEX IF NOT EXISTS idx_customers_inn    ON berg."Customers" ("INN") WHERE "INN" IS NOT NULL AND "INN" != ''`,
-    `CREATE INDEX IF NOT EXISTS idx_customers_tariff ON berg."Customers" ("ID_Tariff")`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_name   ON "Customers" ("NameShort")`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_inn    ON "Customers" ("INN") WHERE "INN" IS NOT NULL AND "INN" != ''`,
+    `CREATE INDEX IF NOT EXISTS idx_customers_tariff ON "Customers" ("ID_Tariff")`,
   ],
 
   Tariffs: [
-    `CREATE INDEX IF NOT EXISTS idx_tariffs_name ON berg."Tariffs" ("Name")`,
+    `CREATE INDEX IF NOT EXISTS idx_tariffs_name ON "Tariffs" ("Name")`,
   ],
 
   Bosses: [
-    `CREATE INDEX IF NOT EXISTS idx_bosses_name ON berg."Bosses" ("Name")`,
+    `CREATE INDEX IF NOT EXISTS idx_bosses_name ON "Bosses" ("Name")`,
   ],
 
   Cargos: [
-    `CREATE INDEX IF NOT EXISTS idx_cargos_name ON berg."Cargos" ("Name")`,
+    `CREATE INDEX IF NOT EXISTS idx_cargos_name ON "Cargos" ("Name")`,
   ],
 
   Cars: [
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_cars_nick          ON berg."Cars" ("Nick")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_id_boss        ON berg."Cars" ("ID_Boss")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_regnogos       ON berg."Cars" ("RegNoGos")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_driver1        ON berg."Cars" ("ID_Driver1")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_driver2        ON berg."Cars" ("ID_Driver2") WHERE "ID_Driver2" IS NOT NULL`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_cartype        ON berg."Cars" ("ID_CarType")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_pointtype      ON berg."Cars" ("ID_PointType")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_isref          ON berg."Cars" ("IsRef")`,
-    `CREATE INDEX IF NOT EXISTS       idx_cars_toexport       ON berg."Cars" ("ToExport") WHERE "ToExport" = true`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_cars_nick          ON "Cars" ("Nick")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_id_boss        ON "Cars" ("ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_regnogos       ON "Cars" ("RegNoGos")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_driver1        ON "Cars" ("ID_Driver1")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_driver2        ON "Cars" ("ID_Driver2") WHERE "ID_Driver2" IS NOT NULL`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_cartype        ON "Cars" ("ID_CarType")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_pointtype      ON "Cars" ("ID_PointType")`,
+    `CREATE INDEX IF NOT EXISTS       idx_cars_isref          ON "Cars" ("IsRef")`
   ],
 
   xSaldo: [
-    `CREATE INDEX IF NOT EXISTS idx_xsaldo_main ON berg."xSaldo" ("ID_CustomerPay", "ID_Boss")`,
-    `CREATE INDEX IF NOT EXISTS idx_xsaldo_cash ON berg."xSaldo" ("IsCash")`,
+    `CREATE INDEX IF NOT EXISTS idx_xsaldo_main ON "xSaldo" ("ID_CustomerPay", "ID_Boss")`,
+    `CREATE INDEX IF NOT EXISTS idx_xsaldo_cash ON "xSaldo" ("IsCash")`,
   ],
 };
 

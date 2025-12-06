@@ -8,15 +8,17 @@ export const MigrationConfig = {
 
   // Подключение к PostgreSQL
   pg: {
-    host: "localhost",
-    user: "postgres",
-    password: "741621",
-    database: "bergauto",
-    port: 5432,
+    host: process.env.PG_LOCAL_HOST,
+    user: process.env.PG_LOCAL_USER,
+    password: process.env.PG_LOCAL_PASSWORD,
+    database: process.env.PG_LOCAL_DB,
+    port: process.env.PG_LOCAL_PORT,
   },
 
+  pg_dbName: "bergapp",
+
   // Схема в PostgreSQL
-  schema: "berg",
+  schema: "bergauto",
 
   // Ограничение на количество строк (null = все)
   limit: null,
