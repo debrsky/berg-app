@@ -61,6 +61,21 @@ async function main() {
   await client.connect();
   console.log(green(`PostgreSQL подключено к базе данных "${dbName}"\n`));
 
+  await client.query(`SET session_replication_role = replica`);
+
+  // Проверяем наличие hstore
+  const res = await client.query(
+    `SELECT 1 FROM pg_extension WHERE extname = 'hstore';`
+  );
+
+  if (res.rowCount === 0) {
+    console.log(yellow('Расширение hstore не найдено. Создаём...'));
+    await client.query('CREATE EXTENSION hstore;');
+    console.log(green('Расширение hstore успешно создано!\n'));
+  } else {
+    console.log(green('Расширение hstore уже установлено.\n'));
+  }
+
   await client.query("SET synchronous_commit = off");
   await client.query("SET client_min_messages = warning");
 
@@ -223,7 +238,9 @@ async function main() {
 
   // ───── 4. ANALYZE ─────
   console.log(cyan("Запуск ANALYZE для всех таблиц..."));
+  await client.query(`SET session_replication_role = origin`);
   for (const tableName of TablesOrder) {
+    // await client.query(`VACUUM FULL ${MigrationConfig.schema}."${tableName}"`);
     await client.query(`ANALYZE ${MigrationConfig.schema}."${tableName}"`);
   }
   console.log(green("ANALYZE завершён — запросы будут летать!\n"));
