@@ -15,7 +15,7 @@ export const MigrationConfig = {
     port: process.env.PG_LOCAL_PORT,
   },
 
-  pg_dbName: "bergapp",
+  pg_dbName: "bergdb",
 
   // Схема в PostgreSQL
   schema: "bergauto",

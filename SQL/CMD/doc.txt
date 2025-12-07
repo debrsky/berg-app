@@ -5,9 +5,9 @@
 
 Команда создания дампа базы данных
 
-pg_dump -h localhost -p 5432 -U postgres -d bergauto --schema=berg --no-owner --no-privileges --no-acl -F c -f bergauto.postgres.backup -v
+pg_dump -U postgres -Fc --schema=bergauto --schema=bergapp --no-owner --no-acl bergdb > bergdb.export.dump
 
 Команда восстановления из дампа
 
-pg_restore -h pg4.sweb.ru -p 5433 -U debrskyru -d debrskyru --no-owner bergauto.postgres.backup -v
+pg_restore -h pg4.sweb.ru -p 5433 -U debrskyru -d debrskyru --no-owner bergdb.export.dump -v
 

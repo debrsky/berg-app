@@ -61,24 +61,6 @@ async function main() {
   await client.connect();
   console.log(green(`PostgreSQL подключено к базе данных "${dbName}"\n`));
 
-  await client.query(`SET session_replication_role = replica`);
-
-  // Проверяем наличие hstore
-  const res = await client.query(
-    `SELECT 1 FROM pg_extension WHERE extname = 'hstore';`
-  );
-
-  if (res.rowCount === 0) {
-    console.log(yellow('Расширение hstore не найдено. Создаём...'));
-    await client.query('CREATE EXTENSION hstore;');
-    console.log(green('Расширение hstore успешно создано!\n'));
-  } else {
-    console.log(green('Расширение hstore уже установлено.\n'));
-  }
-
-  await client.query("SET synchronous_commit = off");
-  await client.query("SET client_min_messages = warning");
-
   const fullPath = path.resolve(__dirname, MigrationConfig.mdbPath);
   if (!fs.existsSync(fullPath)) {
     console.error(red(`Файл MDB не найден: ${fullPath}`));
@@ -96,6 +78,52 @@ async function main() {
     await client.query(`GRANT ALL ON SCHEMA ${MigrationConfig.schema} TO postgres`);
     console.log(yellow(`Схема "${MigrationConfig.schema}" пересоздана\n`));
   }
+
+  // ───── 5. Создание таблицы операций ─────
+  console.log(cyan("\nСоздание таблицы операций и заполнение её данными..."));
+
+  // Проверяем наличие hstore
+  const res = await client.query(
+    `SELECT 1 FROM pg_extension WHERE extname = 'hstore';`
+  );
+  if (res.rowCount === 0) {
+    console.log(yellow('Расширение hstore не найдено. Создаём...'));
+    await client.query('CREATE EXTENSION hstore;');
+    console.log(green('Расширение hstore успешно создано!\n'));
+  } else {
+    console.log(green('Расширение hstore уже установлено.\n'));
+  }
+
+  await client.query(`DROP SCHEMA IF EXISTS bergapp CASCADE`);
+  await client.query(`CREATE SCHEMA bergapp`);
+  await client.query(`GRANT ALL ON SCHEMA bergapp TO postgres`);
+
+  console.log(yellow(`Схема "bergapp" пересоздана\n`));
+
+  const scripts = [
+    "SQL/operations/get-operations.sql",
+    "SQL/operations/calculate-and-save-operations.sql"
+  ];
+
+  for (const script of scripts) {
+    const filePath = script;
+
+    if (!fs.existsSync(filePath)) {
+      console.log(red(`Файл не найден: ${filePath}`));
+      continue;
+    }
+
+    console.log(yellow(`\n → Выполняем: ${script}`));
+    const sql = fs.readFileSync(filePath, "utf8");
+    try {
+      await client.query(sql);
+    } catch (err) {
+      console.log(red(`   ОШИБКА в ${script}: ${err.message}`));
+      console.error(err);
+    }
+  }
+  console.log(yellow(`Хранимые процедуры пересозданы\n`));
+
 
   // ───── 1. Создание таблиц ─────
   for (const tableName of TablesOrder) {
@@ -186,7 +214,7 @@ async function main() {
 
             process.stdout.write(
               `\r  ${inserted.toLocaleString().padStart(String(toInsert).length, " ")}/${toInsert.toLocaleString()} ` +
-              `| ${percent.padStart(5)}% | ${speed.toFixed(0).padStart(5)} стр/с | ETA ${formatTime(eta)}`
+              `| ${percent.padStart(5)}% | ${speed.toFixed(0).padStart(5)} стр/с | ETA ${formatTime(eta)}     `
             );
           }
         }
@@ -238,22 +266,63 @@ async function main() {
 
   // ───── 4. ANALYZE ─────
   console.log(cyan("Запуск ANALYZE для всех таблиц..."));
-  await client.query(`SET session_replication_role = origin`);
   for (const tableName of TablesOrder) {
     // await client.query(`VACUUM FULL ${MigrationConfig.schema}."${tableName}"`);
     await client.query(`ANALYZE ${MigrationConfig.schema}."${tableName}"`);
   }
-  console.log(green("ANALYZE завершён — запросы будут летать!\n"));
+  console.log(green("ANALYZE завершён\n"));
+
+  // Пересоздаем подключение, без этого процедура не видит hstore
+  await client.end();
+  const opClient = new Client({ ...MigrationConfig.pg, database: dbName });
+  await opClient.connect();
+
+  // Заполняем данными таблицу операций
+
+  console.log(cyan("\nЗаполняем данными таблицу операций..."));
+  await opClient.query(`CALL bergapp.calculate_and_save_operations();`);
+  const opCnt = await opClient.query(`SELECT COUNT(*) FROM bergapp.operations;`);
+  console.log(opCnt.rows[0].count + " записей в bergapp.operations");
+  console.log(green("Таблица операций заполнена\n"));
+
+  // Создаем MATERIALIZED VIEW
+  {
+    console.log(yellow(`Создаем MATERIALIZED VIEW...`));
+    const scripts = [
+      "SQL/views/payers.sql",
+      "SQL/views/sellers.sql"
+    ];
+
+    for (const script of scripts) {
+      const filePath = script;
+
+      if (!fs.existsSync(filePath)) {
+        console.log(red(`Файл не найден: ${filePath}`));
+        continue;
+      }
+
+      console.log(yellow(`\n → Выполняем: ${script}`));
+      const sql = fs.readFileSync(filePath, "utf8");
+      try {
+        await opClient.query(sql);
+      } catch (err) {
+        console.log(red(`   ОШИБКА в ${script}: ${err.message}`));
+        console.error(err);
+      }
+    }
+    console.log(yellow(`MATERIALIZED VIEW созданы.\n`));
+  }
+
+  await opClient.end();
 
   // ───── Финал ─────
+
   const totalTime = ((Date.now() - totalStart) / 1000).toFixed(1);
   console.log(cyan("════════════════════════════════════════════════"));
   console.log(yellow("МИГРАЦИЯ ЗАВЕРШЕНА УСПЕШНО!"));
   console.log(`Перенесено строк: ${yellow(totalRows.toLocaleString())}`);
   console.log(`Общее время:      ${yellow(totalTime + " сек")}`);
   console.log(cyan("════════════════════════════════\n"));
-
-  await client.end();
 }
 
 main().catch(err => {

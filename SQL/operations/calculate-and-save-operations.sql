@@ -1,4 +1,9 @@
-CREATE TABLE IF NOT EXISTS bergapp.operations (
+BEGIN;
+DROP TABLE IF EXISTS bergapp.operations;
+COMMIT;
+
+BEGIN;
+CREATE TABLE bergapp.operations (
     op_seq_num integer,
     id_seller integer,
     id_payer integer,
@@ -30,8 +35,10 @@ CREATE TABLE IF NOT EXISTS bergapp.operations (
 -- CREATE INDEX operations_seller_payer_seq_idx ON bergapp.operations (id_seller, id_payer, op_seq_num DESC);
 -- CREATE INDEX IF NOT EXISTS idx_operations_seller_payer ON bergapp.operations(id_seller, id_payer);
 -- CREATE INDEX IF NOT EXISTS idx_operations_date ON bergapp.operations(op_date);
+COMMIT;
 
 
+BEGIN;
 CREATE OR REPLACE PROCEDURE bergapp.calculate_and_save_operations(
     p_id_payer integer DEFAULT NULL::integer,
     p_id_seller integer DEFAULT NULL::integer
@@ -77,3 +84,5 @@ BEGIN
     RAISE NOTICE 'Операция завершена успешно.';
 END;
 $BODY$;
+
+COMMIT;

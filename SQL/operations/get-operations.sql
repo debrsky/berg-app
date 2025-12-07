@@ -13,10 +13,12 @@
 -- Предполагается, что расширение hstore уже установлено в вашей базе данных:
 -- CREATE EXTENSION hstore; 
 
-SET LOCAL search_path TO bergapp, public;
-DROP FUNCTION IF EXISTS get_operations(integer, integer);
+BEGIN;
+DROP FUNCTION IF EXISTS bergapp.get_operations(integer, integer);
+COMMIT;
 
-CREATE OR REPLACE FUNCTION get_operations(
+BEGIN;
+CREATE OR REPLACE FUNCTION bergapp.get_operations(
     p_id_payer integer DEFAULT NULL::integer,
     p_id_seller integer DEFAULT NULL::integer)
     RETURNS TABLE(
@@ -83,18 +85,16 @@ DECLARE
     prev_id_seller integer;
     prev_id_payer integer;
 BEGIN
-    SET LOCAL search_path TO bergauto, public;
-
     FOR rec IN 
         -- Исходный CTE operations
         SELECT * FROM (
             WITH invoices AS (
                 SELECT inv."ID" AS f_id_invoice, inv."ID_Boss" AS f_id_seller, app."ID_CustomerPay" AS f_id_payer, inv."Date"::date AS f_op_date, inv."Date" AS f_op_date_ts, ROUND(inv."Cost"::numeric, 2) AS f_amount, ROUND(inv."Cost"::numeric, 2) AS f_inv_amount
-                FROM "XInvoices" inv JOIN "Applications" app ON app."ID" = inv."ID_Application"
+                FROM bergauto."XInvoices" inv JOIN bergauto."Applications" app ON app."ID" = inv."ID_Application"
                 WHERE inv."Nomer" IS NOT NULL AND inv."Nomer" > 0 AND (p_id_payer IS NULL OR app."ID_CustomerPay" = p_id_payer) AND (p_id_seller IS NULL OR inv."ID_Boss" = p_id_seller)
             ), payments AS (
                 SELECT invp."ID_XInvoice" AS f_id_invoice, inv."ID_Boss" AS f_id_seller, app."ID_CustomerPay" AS f_id_payer, invp."Date"::date AS f_op_date, invp."Date" AS f_op_date_ts, ROUND(invp."Cost"::numeric, 2) AS f_amount_paid, ROUND(inv."Cost"::numeric, 2) AS f_inv_amount
-                FROM "XInvoicePays" invp JOIN "XInvoices" inv ON inv."ID" = invp."ID_XInvoice" JOIN "Applications" app ON app."ID" = inv."ID_Application"
+                FROM bergauto."XInvoicePays" invp JOIN bergauto."XInvoices" inv ON inv."ID" = invp."ID_XInvoice" JOIN bergauto."Applications" app ON app."ID" = inv."ID_Application"
                 WHERE inv."Nomer" IS NOT NULL AND inv."Nomer" > 0 AND (p_id_payer IS NULL OR app."ID_CustomerPay" = p_id_payer) AND (p_id_seller IS NULL OR inv."ID_Boss" = p_id_seller)
             ), operations AS (
                 SELECT f_id_seller AS id_seller, f_id_payer AS id_payer, f_id_invoice AS id_invoice, f_op_date AS op_date, f_op_date_ts as op_date_ts, 1 AS op_type, 10 AS ord, f_inv_amount AS inv_amount, f_amount AS op_amount FROM invoices
@@ -285,4 +285,6 @@ BEGIN
     
     RETURN;
 END;
+
 $BODY$;
+COMMIT;
