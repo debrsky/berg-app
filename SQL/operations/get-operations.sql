@@ -211,7 +211,7 @@ BEGIN
                 -- Быстро получаем долг для зачета (O(1))
                 v_inv_debt_before := COALESCE((v_invoice_debt_map -> v_invoice_id_text)::numeric, 0);
 
-                CONTINUE WHEN v_inv_debt_before = 0;
+                CONTINUE WHEN v_inv_debt_before = 0; -- для надежности
                 
                 v_op_seq_num := v_op_seq_num + 1;
                 v_balance_before := v_balance_after;
@@ -233,7 +233,10 @@ BEGIN
                 -- Обновление HSTORE после зачета
 				IF v_inv_debt_after = 0 THEN
 				    v_invoice_debt_map := delete(v_invoice_debt_map, v_invoice_id_text); -- удалить полностью
-				    v_fifo_invoices := array_remove(v_fifo_invoices, v_id_invoice);
+				    
+                    v_fifo_invoices := array_remove(v_fifo_invoices, v_id_invoice);
+					-- можно и так, но быстрее не становится
+				    -- v_fifo_invoices := v_fifo_invoices[2:];
 				ELSE
 				    v_invoice_debt_map := v_invoice_debt_map || hstore(v_invoice_id_text, v_inv_debt_after::text);
 				END IF;
