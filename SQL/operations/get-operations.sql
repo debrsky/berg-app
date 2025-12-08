@@ -205,7 +205,7 @@ BEGIN
             FOR i IN 1..array_length(v_fifo_invoices, 1) LOOP
                 EXIT WHEN v_prepayment_after <= 0;
                 
-                v_id_invoice := v_fifo_invoices[i];
+                v_id_invoice := v_fifo_invoices[1]; -- Берем всегда первый элемент массива (!), а не i-тый
                 v_invoice_id_text := v_id_invoice::text;
 
                 -- Быстро получаем долг для зачета (O(1))
