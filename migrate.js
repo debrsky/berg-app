@@ -290,7 +290,10 @@ async function main() {
     console.log(yellow(`Создаем MATERIALIZED VIEW...`));
     const scripts = [
       "SQL/views/payers.sql",
-      "SQL/views/sellers.sql"
+      "SQL/views/sellers.sql",
+      "SQL/views/invoices.sql",
+      "SQL/views/balances.sql",
+      "SQL/views/debt_invoices.sql",
     ];
 
     for (const script of scripts) {
