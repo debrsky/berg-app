@@ -6,3 +6,7 @@ https://v8.1c.ru/tekhnologii/obmen-dannymi-i-integratsiya/standarty-i-formaty/st
 CommerceML 2
 
 https://github.com/dobromyslov/commerceml-parser
+
+Поиск контрагентов с помощь pb.nalog.ru
+Юридические лица https://pb.nalog.ru/search-ext.html#queryUlExt=7724330398
+ИП https://pb.nalog.ru/search.html#mode=search-ip&queryIp=253700174100

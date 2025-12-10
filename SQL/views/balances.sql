@@ -43,4 +43,4 @@ AS
     lp.last_payment_date
    FROM last_ops lo
      LEFT JOIN last_payments lp ON lo.id_seller = lp.id_seller AND lo.id_payer = lp.id_payer
-WITH DATA;
+;

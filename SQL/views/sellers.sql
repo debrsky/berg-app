@@ -30,4 +30,4 @@ AS
    FROM bergauto."Bosses"
   WHERE ("ID" IN ( SELECT DISTINCT operations.id_seller
            FROM bergapp.operations))
-WITH DATA;
+;

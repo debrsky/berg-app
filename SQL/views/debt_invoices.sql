@@ -31,4 +31,4 @@ AS
           ORDER BY operations.id_seller, operations.id_payer, operations.op_seq_num DESC) o
      CROSS JOIN LATERAL jsonb_each(o.debt_invoices_after) debt_item(key, value)
   WHERE jsonb_typeof(o.debt_invoices_after) = 'object'::text AND o.debt_invoices_after <> '{}'::jsonb
-WITH DATA;
+;

@@ -21,5 +21,5 @@ AS
    FROM bergauto."Customers"
   WHERE ("ID" IN ( SELECT DISTINCT operations.id_payer
            FROM bergapp.operations))
-WITH DATA;
+;
 

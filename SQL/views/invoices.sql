@@ -18,4 +18,4 @@ AS
         JOIN bergauto."Applications" app ON inv."ID_Application" = app."ID"
     WHERE inv."Nomer" IS NOT NULL AND inv."Nomer" > 0
     ORDER BY inv."Date" DESC
-WITH DATA;
+;
