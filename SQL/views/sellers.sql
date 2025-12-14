@@ -2,31 +2,24 @@
 
 DROP MATERIALIZED VIEW IF EXISTS bergapp.sellers;
 
-CREATE MATERIALIZED VIEW bergapp.sellers
+CREATE MATERIALIZED VIEW IF NOT EXISTS bergapp.sellers
+TABLESPACE pg_default
 AS
  SELECT "ID" AS id_seller,
-    -- "Name",
-    "BossName" AS name
-    -- "Mem",
-    -- "Tel",
-    -- "Address",
-    -- "INN",
-    -- "OGRN",
-    -- "KPP",
-    -- "RS",
-    -- "KS",
-    -- "BIK",
-    -- "Bank",
-    -- "RS2",
-    -- "KS2",
-    -- "BIK2",
-    -- "Bank2",
-    -- "BuhName",
-    -- "NextInvoiceNomer",
-    -- "NDS",
-    -- "BaseCode",
-    -- "ID_Ref",
-    -- "ToExport"
+    "Name" AS name,
+    "BossName" AS ceo,
+    "Address" AS address,
+    "INN" AS inn,
+        CASE
+            WHEN length("INN"::text) = 10 THEN "KPP"
+            ELSE NULL::character varying
+        END AS kpp,
+    "OGRN" AS ogrn,
+    "RS" AS rs,
+    "Bank" AS bank,
+    "BIK" AS bik,
+    "KS" AS ks,
+    "NDS"::numeric AS nds
    FROM bergauto."Bosses"
   WHERE ("ID" IN ( SELECT DISTINCT operations.id_seller
            FROM bergapp.operations))
