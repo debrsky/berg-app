@@ -292,6 +292,7 @@ async function main() {
       "SQL/views/payers.sql",
       "SQL/views/sellers.sql",
       "SQL/views/invoices.sql",
+      "SQL/views/counterparties.sql",
       "SQL/views/balances.sql",
       "SQL/views/debt_invoices.sql",
     ];
