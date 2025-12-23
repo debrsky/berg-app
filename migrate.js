@@ -287,7 +287,7 @@ async function main() {
 
   // Создаем MATERIALIZED VIEW
   {
-    console.log(yellow(`Создаем MATERIALIZED VIEW...`));
+    console.log(yellow(`Создаем MATERIALIZED VIEW и FUNCTIONS...`));
     const scripts = [
       "SQL/views/payers.sql",
       "SQL/views/sellers.sql",
@@ -295,6 +295,9 @@ async function main() {
       "SQL/views/counterparties.sql",
       "SQL/views/balances.sql",
       "SQL/views/debt_invoices.sql",
+      "SQL/functions/get-payers-xml.sql",
+      "SQL/functions/get-sellers-xml.sql",
+      "SQL/functions/get-balances-xml.sql"
     ];
 
     for (const script of scripts) {
@@ -314,7 +317,7 @@ async function main() {
         console.error(err);
       }
     }
-    console.log(yellow(`MATERIALIZED VIEW созданы.\n`));
+    console.log(yellow(`MATERIALIZED VIEW и FUNCTIONS созданы.\n`));
   }
 
   await opClient.end();
