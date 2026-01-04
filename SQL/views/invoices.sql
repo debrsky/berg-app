@@ -12,6 +12,8 @@ AS
         inv."Nomer" AS nomer,
         inv."Date"::date AS inv_date,
         inv."Date" AS inv_date_ts,
+        app."StartInPlan"::date AS shipment_date,
+        app."EndOutPlan"::date AS delivery_date,
         round(inv."Cost"::numeric, 2) AS amount,
         CASE WHEN inv."Date"::date < '2025-12-01'::date THEN 0::numeric ELSE b."NDS"::numeric END AS nds,
         inv."Name" AS content,
