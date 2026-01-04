@@ -13,7 +13,7 @@ AS
 		inv."Date"::date AS inv_date,
 		inv."Date" AS inv_date_ts,
 		round(inv."Cost"::numeric, 2) AS amount,
-		b."NDS"::numeric AS nds,
+		CASE WHEN inv."Date"::date < '2025-12-01'::date THEN 0::numeric ELSE b."NDS"::numeric END AS nds,
 		inv."Name" AS content,
 		inv."Mem" AS memo,
 		jsonb_build_object(
