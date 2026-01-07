@@ -15,6 +15,12 @@ AS
             ELSE NULL::character varying
         END AS kpp,
     "OGRN" AS ogrn,
+    CASE
+        WHEN "OGRN" = '304253930300041' THEN '2004-10-29'::date -- Горшунов
+        WHEN "OGRN" = '304253726100112' THEN '2004-09-17'::date -- Берг
+        WHEN "OGRN" = '304253820500080' THEN '2004-07-23'::date -- Балобаев
+        ELSE NULL
+    END AS ogrn_date,
     "RS" AS rs,
     "Bank" AS bank,
     "BIK" AS bik,
