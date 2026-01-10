@@ -15,7 +15,7 @@ AS
         app."StartInPlan"::date AS shipment_date,
         app."EndOutPlan"::date AS delivery_date,
         round(inv."Cost"::numeric, 2) AS amount,
-        CASE WHEN inv."Date"::date < '2025-12-01'::date THEN 0::numeric ELSE b."NDS"::numeric END AS nds,
+        CASE WHEN inv."Date"::date < '2026-01-01'::date THEN 0::numeric ELSE b."NDS"::numeric END AS nds,
         inv."Name" AS content,
         inv."Mem" AS memo,
         jsonb_build_object(
