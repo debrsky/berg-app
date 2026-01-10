@@ -21,6 +21,7 @@ WHERE
 	"ID" IN (SELECT DISTINCT id_payer FROM bergapp.invoices)
 	OR "ID" IN (SELECT DISTINCT id_consigner FROM bergapp.invoices)
 	OR "ID" IN (SELECT DISTINCT id_consignee FROM bergapp.invoices)
-WITH DATA
-;
+WITH DATA;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_counterparties_id_counterparty 
+ON bergapp.counterparties (id_counterparty);

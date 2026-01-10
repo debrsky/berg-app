@@ -30,3 +30,6 @@ AS
   WHERE ("ID" IN ( SELECT DISTINCT operations.id_seller
            FROM bergapp.operations))
 ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sellers_id_seller 
+ON bergapp.sellers (id_seller);

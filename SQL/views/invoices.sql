@@ -54,3 +54,19 @@ AS
        JOIN bergauto."Cargos" c ON c."ID" = app."ID_Cargo"
     WHERE inv."Nomer" <> 0
 WITH DATA;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_id_invoice 
+ON bergapp.invoices (id_invoice);
+
+-- Индексы на поля JOIN'ов (foreign keys в invoices)
+CREATE INDEX IF NOT EXISTS idx_invoices_id_seller 
+ON bergapp.invoices (id_seller);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_id_payer 
+ON bergapp.invoices (id_payer);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_id_consigner 
+ON bergapp.invoices (id_consigner);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_id_consignee 
+ON bergapp.invoices (id_consignee);
