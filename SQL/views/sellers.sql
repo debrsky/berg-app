@@ -19,6 +19,7 @@ AS
         WHEN "OGRN" = '304253930300041' THEN '2004-10-29'::date -- Горшунов
         WHEN "OGRN" = '304253726100112' THEN '2004-09-17'::date -- Берг
         WHEN "OGRN" = '304253820500080' THEN '2004-07-23'::date -- Балобаев
+        WHEN "OGRN" = '325253600048174' THEN '2027-05-25'::date -- Коновалов
         ELSE NULL
     END AS ogrn_date,
     "RS" AS rs,
