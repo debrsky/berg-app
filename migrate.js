@@ -49,7 +49,7 @@ async function main() {
 
   if (result.rowCount === 0) {
     console.log(yellow(`Database "${dbName}" does not exist. Creating...`));
-    await adminClient.query(`CREATE DATABASE ${dbName}`);
+    await adminClient.query(`CREATE DATABASE ${dbName}; ALTER DATABASE ${dbName} SET TIMEZONE='Asia/Vladivostok';`);
     console.log(yellow(`Database "${dbName}" created.`));
   } else {
     console.log(green(`Database "${dbName}" already exists.`));
@@ -287,7 +287,7 @@ async function main() {
 
   // Создаем MATERIALIZED VIEW
   {
-    console.log(yellow(`Создаем MATERIALIZED VIEW и FUNCTIONS...`));
+    console.log(yellow(`Создаем MATERIALIZED VIEW, FUNCTIONS и TABLES`));
     const scripts = [
       "SQL/views/payers.sql",
       "SQL/views/sellers.sql",
@@ -297,7 +297,9 @@ async function main() {
       "SQL/views/debt_invoices.sql",
       "SQL/functions/get-payers-xml.sql",
       "SQL/functions/get-sellers-xml.sql",
-      "SQL/functions/get-balances-xml.sql"
+      "SQL/functions/get-balances-xml.sql",
+      "SQL/persistent/archived_invoices.sql",
+      "SQL/persistent/archive_invoices.sql"
     ];
 
     for (const script of scripts) {
@@ -317,7 +319,7 @@ async function main() {
         console.error(err);
       }
     }
-    console.log(yellow(`MATERIALIZED VIEW и FUNCTIONS созданы.\n`));
+    console.log(yellow(`MATERIALIZED VIEW, FUNCTIONS и TABLES созданы.\n`));
   }
 
   await opClient.end();
