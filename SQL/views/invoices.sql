@@ -78,6 +78,7 @@ SELECT
                     'mUcode', '796',
                     'mU', 'шт',
                     'amount', amount,
+                    'nds', nds,
                     'nds_amount', round(amount * (nds / (100 + nds)), 2),
                     'amount_without_nds', amount - round(amount * (nds / (100 + nds)), 2),
                     'price_without_nds', amount - round(amount * (nds / (100 + nds)), 2)  -- Поскольку qty=1
@@ -108,6 +109,7 @@ SELECT
                                     ELSE 'рейс'
                                 END,
                                 'amount', round((invd."Price" * invd."Amount")::numeric, 2),
+                                'nds', nds,
                                 'nds_amount', round(round((invd."Price" * invd."Amount")::numeric, 2) * (nds / (100 + nds)), 2),
                                 'amount_without_nds', round((invd."Price" * invd."Amount")::numeric, 2) 
                                     - round(round((invd."Price" * invd."Amount")::numeric, 2) * (nds / (100 + nds)), 2),
@@ -137,6 +139,7 @@ SELECT
                         'mUcode', '796',
                         'mU', 'шт',
                         'amount', amount,
+                        'nds', nds,
                         'nds_amount', round(amount * (nds / (100 + nds)), 2),
                         'amount_without_nds', amount - round(amount * (nds / (100 + nds)), 2),
                         'price_without_nds', amount - round(amount * (nds / (100 + nds)), 2)
