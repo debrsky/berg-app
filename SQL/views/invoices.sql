@@ -15,8 +15,8 @@ WITH inv_base AS (
         inv."Nomer",
         inv."Date"::date AS inv_date,
         inv."Date" AS inv_date_ts,
-        app."StartInPlan"::date AS shipment_date,
-        app."EndOutPlan"::date AS delivery_date,
+        -- app."StartInPlan"::date AS shipment_date,
+        -- app."EndOutPlan"::date AS delivery_date,
         round(inv."Cost"::numeric, 2) AS amount,  -- Оставляем для совместимости, но итоги считаем отдельно
         CASE
             WHEN inv."Date"::date < '2026-01-01'::date THEN 0::numeric
@@ -51,11 +51,11 @@ SELECT
     "Nomer" AS nomer,
     inv_date,
     inv_date_ts,
-    shipment_date,
-    delivery_date,
+    -- shipment_date,
+    -- delivery_date,
     amount,  -- Общий amount из инвойса (для справки)
     nds,
-    content,
+    -- content,
     memo,
     jsonb_build_object(
         'id_app', app_id,
