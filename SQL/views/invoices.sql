@@ -99,7 +99,7 @@ SELECT
                                     WHEN 1 THEN '166'
                                     WHEN 2 THEN '113'
                                     WHEN 3 THEN '356'
-                                    ELSE '---'
+                                    ELSE '--'
                                 END,
                                 'mU', CASE invd."TypeEd"
                                     WHEN 0 THEN 'шт'
