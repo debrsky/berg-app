@@ -123,7 +123,7 @@ SELECT
                                                 2
                                             ) / invd."Amount"
                                         )::numeric
-                                    END, 4
+                                    END, 6
                                 )
                             ) ORDER BY invd."Pos"
                         ) AS jsonb_agg
