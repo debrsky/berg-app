@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS berg_persistent.archived_invoices (
     UNIQUE (id_invoice, archived_at)
 );
 
+COMMENT ON COLUMN berg_persistent.archived_invoices.reason IS '1) новый 2) изменен 3) существенно изменен';
 
 CREATE TABLE IF NOT EXISTS berg_persistent.document_transmissions (
     id_transmission SERIAL PRIMARY KEY,
@@ -23,3 +24,5 @@ CREATE TABLE IF NOT EXISTS berg_persistent.document_transmissions (
     sent_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB DEFAULT '{}'
 )
+
+COMMENT ON COLUMN berg_persistent.document_transmissions.status IS '1) sent 2) delivered 3) failed';
