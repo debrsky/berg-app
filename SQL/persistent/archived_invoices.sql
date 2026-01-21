@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS berg_persistent.archived_invoices (
     UNIQUE (id_invoice, archived_at)
 );
 
-COMMENT ON COLUMN berg_persistent.archived_invoices.reason IS '1) новый 2) изменен 3) существенно изменен';
+COMMENT ON COLUMN berg_persistent.archived_invoices.reason IS '1) новый 2) существенно изменен 3) изменен';
 
 CREATE TABLE IF NOT EXISTS berg_persistent.document_transmissions (
     id_transmission SERIAL PRIMARY KEY,
