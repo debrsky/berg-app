@@ -23,6 +23,6 @@ CREATE TABLE IF NOT EXISTS berg_persistent.document_transmissions (
     status INTEGER NOT NULL DEFAULT 1, -- 1) sent 2) delivered 3) failed
     sent_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     metadata JSONB DEFAULT '{}'
-)
+);
 
 COMMENT ON COLUMN berg_persistent.document_transmissions.status IS '1) sent 2) delivered 3) failed';
