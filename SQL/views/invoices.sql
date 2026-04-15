@@ -33,7 +33,8 @@ WITH inv_base AS (
         round(app."Volume"::numeric, 2) AS app_volume,
         app."CountPcs"::numeric AS app_count_pcs,
         inv."IsFixed",
-        inv."ID_Application"
+        inv."ID_Application",
+        app."IsCash"
     FROM bergauto."XInvoices" inv
     JOIN bergauto."Applications" app ON app."ID" = inv."ID_Application"
     JOIN bergauto."Bosses" b ON b."ID" = inv."ID_Boss"
@@ -177,7 +178,8 @@ SELECT
              WHERE invd."ID_XInvoice" = inv_base."ID" AND invd."IsFree" = false),
             amount - round(amount * (nds / (100 + nds)), 2)  -- Дефолт
         )
-    END AS total_amount_without_nds
+    END AS total_amount_without_nds,
+    "IsCash" AS is_cash
 FROM inv_base
 
 WITH DATA;
